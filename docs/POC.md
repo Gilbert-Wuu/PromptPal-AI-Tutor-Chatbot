@@ -1,4 +1,4 @@
-# Proof of Concept (POC) Document  
+# Proof of Concept Document  
 
 ## 1. Objective of the POC  
 The purpose of this Proof of Concept is to validate the feasibility of an **AI-powered tutor chatbot** that can later be integrated into Athena.  
