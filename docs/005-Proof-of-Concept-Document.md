@@ -20,7 +20,8 @@ This POC will serve as the foundation for the full solution to be presented in m
 - Supports **freeform Q&A**  
 - Provides **preliminary prompts** for users to select (starter examples / guided entry points)  
 - Connects to a **sample company knowledge base** (e.g., Athena FAQ, Power BI guide)  
-- Provides **one structured learning module** (intro to AI / prompt engineering)  
+- Provides **one structured learning module** (intro to AI / prompt engineering)
+  - Learning module should include step-by-step lessons (bite-sized AI concepts) and interactive exercises (e.g., multiple choice, prompt writing), with results logged for tracking progress.
 - Basic **user progress logging** (quiz scores, usage history)  
 
 ### Non-Functional Requirements 
@@ -61,9 +62,11 @@ This POC will serve as the foundation for the full solution to be presented in m
 
 - **Phase 2 (Sept 29 – Oct 3)**  
   - Expand demo UI with improvements (menus, formatting)  
-  - Implement guided learning module (intro to AI / prompt engineering)  
-  - Add basic logging for user progress  
-  - **Output:** Minimum viable POC ready for initial testing  
+  - Implement guided learning module, including:  
+    - Step-by-step lesson flow (e.g., intro to AI concepts, prompt basics)  
+    - At least one interactive exercise (multiple choice or prompt writing)  
+  - Add logging for user progress and exercise results (quiz scores, lesson completion)  
+  - **Output:** Minimum viable POC with one complete learning + exercise module, ready for initial testing  
 
 - **Phase 3 (Oct 6 – Oct 10)**  
   - Conduct internal demo with test users (3–5 people)  
