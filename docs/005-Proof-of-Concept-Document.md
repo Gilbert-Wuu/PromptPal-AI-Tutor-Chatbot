@@ -45,7 +45,6 @@ This POC will serve as the foundation for the full solution to be presented in m
 
 ## 4. Timeline & Milestones  
 
-*Note: Timeline adjusted to reflect need for alignment on high-level design (HLD), low-level design (LLD), and schemas before implementation.*  
 
 - **Phase 0 (Sept 4 – Sept 16)**  
   - Project setup and repo initialization  
