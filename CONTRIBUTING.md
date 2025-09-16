@@ -48,13 +48,6 @@ Welcome to the PromptPal project! Please read and follow these contribution guid
 
 ---
 
-## Naming & Enforcement
-
-* PRs from improperly named branches (e.g., `fix-bug`, `update1`) will be **blocked by automated checks**.
-* A GitHub Action will validate your branch name format before allowing merge.
-
----
-
 ## Best Practices
 
 * Keep branches focused on a single change or issue.
