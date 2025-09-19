@@ -54,7 +54,9 @@ This POC will serve as the foundation for the full solution to be presented in m
   - **Output:** POC plan + GitHub repo initialized  
 
 - **Phase 1 (Sept 16 – Sept 27)**  
-  - Align on request/response formats and schemas (LLD)  
+  - Define AI agent interactions and roles  
+  - Design chatbot survey for assessing user AI proficiency and store results in vector DB
+  - Define schemas for knowledge base (vector storage, chunking, embeddings, similarity search) and align frontend/backend data structures
   - Build base demo UI shell (chat window, simple controls, preliminary prompts)  
   - Connect demo UI to OpenAI API for Q&A  
   - Load sample company document into knowledge base  
