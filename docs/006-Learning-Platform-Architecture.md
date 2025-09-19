@@ -24,6 +24,12 @@
 14. **Feedback Loop:** Users can provide feedback on content quality, which is reviewed by the Curation Agent to improve future content selection and curation.
 15. **Scheduling Learning Sessions:** Users can schedule regular learning sessions by integrating with calendar APIs. The system sends reminders and prepares tailored content for each session based on the user's progress and upcoming learning goals.
 
+## Agents Used
+- **Learning Navigator Agent:** Suggests relevant prompts based on user profile and progress.
+- **Trainer Agent:** Retrieves and synthesizes learning content from the Curriculum Vector DB.
+- **Curation Agent:** Performs web searches to find and curate up-to-date, real-world examples when needed.
+- **Assessment Agent:** Generates and evaluates quizzes to assess user understanding and update profiles.
+
 ## Architecture Diagram
 
 ```mermaid
