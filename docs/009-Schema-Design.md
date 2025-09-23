@@ -48,6 +48,12 @@ Response:
   "suggestedPrompts": ["string"],
   "links": ["string"],
   "assessmentMode": false,
+  "assessmentDetails": {
+    "questionId": "string",
+    "options": ["string"],
+    "correctOption": "string",
+    "explanation": "string"
+  },
   "timestamp": "ISO8601 string"
 }
 ```
@@ -105,7 +111,7 @@ Input: User Query, User Profile, Learning Context
 Question Generation Output Schema:
 ```json
 {
-  "questionId": "string",
+  "responseId": "string",
   "userId": "string",
   "sessionId": "string",
   "question": "string", 
