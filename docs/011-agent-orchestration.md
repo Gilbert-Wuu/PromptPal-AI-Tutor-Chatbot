@@ -2,39 +2,18 @@
 
 ## Overview
 Our learning platform uses an **agent-based architecture** to deliver adaptive, personalized AI training.  
-- **LangChain/LangGraph**: Runs the **core logic of each agent** (reasoning, tool use, pedagogy).  
-- **n8n**: Serves as the **lightweight orchestration and visualization layer**, connecting agents to external systems (DBs, APIs, notifications) and providing monitoring & error handling.  
-  - **Pricing:** n8n offers a 14-day free trial, then $24/month.  
+- **LangGraph** is the orchestration backbone.  
+- It manages how agents pass information between each other, keeps a shared state, and supports branching workflows (e.g., fallback to external search if internal DB has no results).  
 
-This hybrid setup balances **flexibility (LangChain)** with **ease of integration (n8n)**.
+This design keeps all orchestration in one framework, with no reliance on external workflow tools.
 
 ---
 
-## Alternative: Using Only LangChain/LangGraph for Orchestration
-
-If we decide not to include n8n, LangChain/LangGraph can serve as the **sole orchestration framework**.
-
-### Pros
-- **Full Control in Code:**  
-  All orchestration logic (agent coordination, retries, error handling) lives in Python. Developers have complete flexibility.  
-- **Tighter Integration with Agent Logic:**  
-  Orchestration and reasoning run in the same framework, reducing handoff complexity.  
-- **Customizability:**  
-  Complex multi-agent workflows (e.g., Tutor Agent → Assessment → Planner) can be coded with precise logic.
-
-### Cons
-- **Developer Overhead:**  
-  Every integration (Postgres, Teams, Power BI, Outlook, Slack, etc.) must be written and maintained in Python.  
-- **Slower Iteration:**  
-  Changes to workflows require code updates, reviews, and redeployment instead of visual drag-and-drop.  
-- **Monitoring & Observability Gaps:**  
-  LangChain provides callbacks, but no built-in dashboards or retry queues like n8n’s workflow UI.  
-- **Steeper Learning Curve for Non-Developers:**  
-  Stakeholders cannot easily view or adjust workflows without developer support.
-
-### When It May Limit Us
-- If the client expects **many external integrations** (Teams, Outlook, Power BI, Databricks, etc.), writing and maintaining all connectors in Python could be time-consuming.  
-- If we want **business visibility into workflows**, n8n provides a friendlier monitoring and debugging surface.  
+## Why LangGraph Instead of LangChain Alone?
+- **Stateful orchestration:** Agents share a central state object instead of passing raw outputs.  
+- **Branching and looping:** Easier to implement “if/else” flows (e.g., search DB → if empty → call Curation Agent).  
+- **Multi-agent focus:** Purpose-built for agent graphs, unlike classic LangChain chains.  
+- **Scalability:** Adding or removing agents is easier as the graph grows.  
 
 ---
 
@@ -46,16 +25,70 @@ If we decide not to include n8n, LangChain/LangGraph can serve as the **sole orc
 2. **Trainer Agent**  
    - Retrieves content from the Curriculum Vector DB (Weaviate).  
    - Synthesizes explanations with GPT-5.  
-   - If content is missing, triggers the **Curation Agent**.  
+   - If content is missing, routes to the **Curation Agent**.  
 
 3. **Curation Agent**  
-   - Performs web search (Perplexity API, Google Search) to supplement missing materials.  
-   - Returns fresh references to the Trainer Agent.  
+   - Performs web search (Perplexity API) to supplement missing materials.  
+   - Updates the state with new references for the Trainer Agent.  
 
 4. **Assessment Agent**  
    - Generates quizzes to evaluate user understanding.  
-   - Updates the user profile in Postgres based on assessment outcomes.  
+   - Updates the user profile in Postgres with results.
+     
+---
 
+## How Agents Communicate
+
+- Each agent is implemented as a **LangGraph node**.  
+- Data flows through a **state object** (like a dictionary), which carries the user’s profile, current question, retrieved content, and assessment results.  
+- Agents read from this state, process their part, and then **update the state** before handing it to the next agent.  
+
+### Example Flow
+
+1. **Navigator Agent**  
+   - Writes to state:  
+     ```json
+     { "selected_prompt": "Explain supervised learning for finance" }
+     ```
+
+2. **Trainer Agent**  
+   - Reads `selected_prompt` from state.  
+   - Queries Weaviate DB.  
+   - **If DB has content** → updates state:  
+     ```json
+     { "lesson": "...content from DB..." }
+     ```  
+   - **If DB has no content** → routes to **Curation Agent**.  
+
+3. **Curation Agent**  
+   - Fetches external references.  
+   - Updates state with curated content:  
+     ```json
+     { "lesson": "...fetched from Perplexity..." }
+     ```  
+   - Returns control to **Trainer Agent** for synthesis.  
+
+4. **Trainer Agent (Synthesis)**  
+   - Synthesizes final lesson content from DB and/or curated references.  
+   - Updates state:  
+     ```json
+     { "lesson": "...final explanation..." }
+     ```  
+
+5. **Assessment Agent**  
+   - Reads `lesson` from state.  
+   - Generates quiz.  
+   - Updates state:  
+     ```json
+     { "quiz": "...questions..." }
+     ```  
+
+6. **Profile Updater**  
+   - Reads quiz results from state.  
+   - Updates PostgreSQL with:  
+     ```json
+     { "results": "...user performance..." }
+     ```
 ---
 
 ## Orchestration Flow
@@ -66,53 +99,13 @@ flowchart TD
     B --> C[Trainer Agent]
 
     C -->|Vector Search| D[Weaviate DB]
-    C -->|If content missing| E[Curation Agent via Perplexity API]
+    C -->|If no results| E[Curation Agent - Perplexity]
     E --> C
 
-    C --> F[Synthesize & <br/> Deliver Response]
+    C --> F[Synthesize & <br/>Deliver Response]
     F --> G[Assessment Agent]
-    G --> H[Update Profile <br/> in PostgreSQL]
-    H --> I[Log Results <br/> to Dashboard - Optional]
+    G --> H[Update Profile <br/>in PostgreSQL]
+    H --> I[Log Results to Dashboard]
 
-   %% Style optional node with dashed border
+    %% Optional step styling
     style I stroke-dasharray: 5 5
-```
----
-
-## How the Orchestration Works
-
-1. **User Profile Creation**
-
-    - Every new learner starts by filling out a short survey.
-    - This helps us understand their role, AI knowledge level, and what they want to learn.
-
-2. **Learning Navigator Agent**
-
-    - Based on that profile, the Navigator suggests a few starting prompts or topics.
-    - Think of it as a personalized “learning guide” that tailors the journey for each employee.
-
-3. **Trainer Agent**
-
-    - When a user selects a topic, the Trainer Agent takes over.
-    - It first searches our internal Weaviate database for relevant learning content.
-    - If the database doesn’t have enough material, it calls the Curation Agent, which can fetch and summarize trusted external references (for example via Perplexity).
-
-4. **Synthesize & Deliver Response**
-
-    - The Trainer Agent then pulls everything together into a clear explanation or lesson.
-    - This is what the employee sees in the learning interface.
-
-5. **Assessment Agent**
-
-    - After content delivery, the Assessment Agent provides a short quiz or activity.
-    - This helps measure whether the employee understood the material.
-
-6. **Update Profile in PostgreSQL**
-
-    - Results are saved back to the user’s profile.
-    - Over time, the system builds a record of strengths and areas where more learning is needed.
-
-7. **(Optional) Log Results to Dashboard**
-
-    - We can also log results into dashboards for clients to track progress.
-    - This step is optional, but it helps track adoption and impact at the organizational level.
