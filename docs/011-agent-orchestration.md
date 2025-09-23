@@ -33,8 +33,62 @@ This design keeps all orchestration in one framework, with no reliance on extern
 
 4. **Assessment Agent**  
    - Generates quizzes to evaluate user understanding.  
-   - Updates the user profile in Postgres with results.  
+   - Updates the user profile in Postgres with results.
+     
+---
 
+## How Agents Communicate
+
+- Each agent is implemented as a **LangGraph node**.  
+- Data flows through a **state object** (like a dictionary), which carries the user’s profile, current question, retrieved content, and assessment results.  
+- Agents read from this state, process their part, and then **update the state** before handing it to the next agent.  
+
+### Example Flow
+
+1. **Navigator Agent**  
+   - Writes to state:  
+     ```json
+     { "selected_prompt": "Explain supervised learning for finance" }
+     ```
+
+2. **Trainer Agent**  
+   - Reads `selected_prompt` from state.  
+   - Queries Weaviate DB.  
+   - **If DB has content** → updates state:  
+     ```json
+     { "lesson": "...content from DB..." }
+     ```  
+   - **If DB has no content** → routes to **Curation Agent**.  
+
+3. **Curation Agent**  
+   - Fetches external references.  
+   - Updates state with curated content:  
+     ```json
+     { "lesson": "...fetched from Perplexity..." }
+     ```  
+   - Returns control to **Trainer Agent** for synthesis.  
+
+4. **Trainer Agent (Synthesis)**  
+   - Synthesizes final lesson content from DB and/or curated references.  
+   - Updates state:  
+     ```json
+     { "lesson": "...final explanation..." }
+     ```  
+
+5. **Assessment Agent**  
+   - Reads `lesson` from state.  
+   - Generates quiz.  
+   - Updates state:  
+     ```json
+     { "quiz": "...questions..." }
+     ```  
+
+6. **Profile Updater**  
+   - Reads quiz results from state.  
+   - Updates PostgreSQL with:  
+     ```json
+     { "results": "...user performance..." }
+     ```
 ---
 
 ## Orchestration Flow
