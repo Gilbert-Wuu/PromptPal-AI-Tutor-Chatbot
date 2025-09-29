@@ -43,7 +43,6 @@
 | `user_id` (FK)     | UUID      | Links to users table                       |
 | `completed_modules`| JSONB     | List of completed module IDs               |
 | `quiz_scores`      | JSONB     | Mapping of module → score                  |
-| `interaction_log`  | JSONB     | Stores last prompts and selections         |
 | `last_login`       | TIMESTAMP | Last active session                        |
 
 ---
