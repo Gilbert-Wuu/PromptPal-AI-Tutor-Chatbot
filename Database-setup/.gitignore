@@ -1,0 +1,37 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.pyc
+
+# Database backups
+*.sql.gz
+*.dump
+backup_*.sql
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Data files (optional - uncomment if you don't want to track CSV data)
+# Vector_DB/data/*.csv
