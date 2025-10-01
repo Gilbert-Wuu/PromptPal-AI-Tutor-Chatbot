@@ -20,8 +20,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
 # Data files
-CORE_CONCEPTS_CSV = DATA_DIR / "core_concepts.csv"
-USE_CASES_CSV = DATA_DIR / "use_cases.csv"
+CORE_CONCEPTS_CSV = DATA_DIR / "ai_concepts.csv"
+USE_CASES_CSV = DATA_DIR / "use_case.csv"
 
 # Environment variables
 WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
