@@ -15,8 +15,7 @@ Vector_DB/
 │   ├── load_data.py             # Loads CSV data into Weaviate
 │   └── config.py                # Configuration file (optional)
 │
-├── .gitignore
-└── README.md
+└── README.md                    # Weaviate-specific documentation
 ```
 
 ---
