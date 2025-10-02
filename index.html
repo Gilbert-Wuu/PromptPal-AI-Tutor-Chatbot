@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Playground - PromptPal</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="playground-header">
+        <div class="container">
+            <div class="header-brand">
+                <i class="fas fa-robot"></i>
+                <span>PromptPal AI Playground</span>
+            </div>
+            <div class="header-subtitle">
+                <p>Explore AI concepts through interactive tools and experiments</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- AI Playground Section -->
+    <main class="playground-main">
+        <div class="container">
+            <div class="playground-container">
+                <div class="playground-tabs">
+                    <button class="tab-btn active" data-tab="prompt">
+                        <i class="fas fa-magic"></i>
+                        Prompt Generator
+                    </button>
+                    <button class="tab-btn" data-tab="chatbot">
+                        <i class="fas fa-comments"></i>
+                        AI Chatbot
+                    </button>
+                    <button class="tab-btn" data-tab="image">
+                        <i class="fas fa-image"></i>
+                        Image Generator
+                    </button>
+                </div>
+
+                <div class="tab-content active" id="prompt">
+                    <div class="tool-container">
+                        <div class="tool-header">
+                            <h3><i class="fas fa-magic"></i> AI Prompt Generator</h3>
+                            <p>Transform your ideas into powerful AI prompts</p>
+                        </div>
+                        <div class="input-section">
+                            <div class="input-group">
+                                <label for="prompt-input">Enter your idea:</label>
+                                <textarea id="prompt-input" placeholder="Describe what you want to create... (e.g., 'a website for a bakery', 'a story about robots', 'a marketing campaign')"></textarea>
+                            </div>
+                            <button class="btn btn-primary" onclick="generatePrompt()">
+                                <i class="fas fa-wand-magic-sparkles"></i>
+                                Generate Enhanced Prompt
+                            </button>
+                        </div>
+                        <div class="output-section" id="prompt-output">
+                            <div class="output-header">
+                                <h4><i class="fas fa-sparkles"></i> Generated Prompt:</h4>
+                            </div>
+                            <div class="output-content">
+                                <p id="generated-prompt">Your enhanced prompt will appear here...</p>
+                                <button class="btn btn-outline copy-btn" onclick="copyToClipboard('generated-prompt')" style="display: none;">
+                                    <i class="fas fa-copy"></i>
+                                    Copy Prompt
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="chatbot">
+                    <div class="tool-container">
+                        <div class="tool-header">
+                            <h3><i class="fas fa-robot"></i> AI Learning Assistant</h3>
+                            <p>Ask questions about AI concepts and get instant answers</p>
+                        </div>
+                        <div class="chat-container">
+                            <div class="chat-messages" id="chat-messages">
+                                <div class="message bot">
+                                    <div class="message-avatar">
+                                        <i class="fas fa-robot"></i>
+                                    </div>
+                                    <div class="message-bubble">
+                                        <p>Hello! I'm your AI learning assistant. Ask me anything about AI concepts, machine learning, or how AI works!</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="chat-input-container">
+                                <div class="chat-input">
+                                    <input type="text" id="chat-input" placeholder="Ask about AI concepts, machine learning, neural networks...">
+                                    <button onclick="sendMessage()">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <div class="quick-questions">
+                                    <span>Quick questions:</span>
+                                    <button class="quick-btn" onclick="askQuickQuestion('What is machine learning?')">What is ML?</button>
+                                    <button class="quick-btn" onclick="askQuickQuestion('How do neural networks work?')">Neural Networks</button>
+                                    <button class="quick-btn" onclick="askQuickQuestion('What are AI applications?')">AI Applications</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="image">
+                    <div class="tool-container">
+                        <div class="tool-header">
+                            <h3><i class="fas fa-image"></i> AI Image Generation Explainer</h3>
+                            <p>Learn how AI creates images from text descriptions</p>
+                        </div>
+                        <div class="input-section">
+                            <div class="input-group">
+                                <label for="image-prompt">Describe an image:</label>
+                                <input type="text" id="image-prompt" placeholder="A futuristic AI robot in a cyberpunk city...">
+                            </div>
+                            <button class="btn btn-primary" onclick="explainImageGeneration()">
+                                <i class="fas fa-brain"></i>
+                                Explain AI Process
+                            </button>
+                        </div>
+                        <div class="output-section" id="image-output">
+                            <div class="output-header">
+                                <h4><i class="fas fa-cogs"></i> How AI Generates Images:</h4>
+                            </div>
+                            <div class="output-content">
+                                <p id="image-explanation">Enter a description to learn how AI would generate this image...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Simple Footer -->
+    <footer class="simple-footer">
+        <div class="container">
+            <p>&copy; 2025 PromptPal AI Playground - Making AI Learning Interactive</p>
+        </div>
+    </footer>
+
+    <script src="starter.js"></script>
+</body>
+</html>
