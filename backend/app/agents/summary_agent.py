@@ -2,6 +2,8 @@ import os
 import openai
 from dotenv import load_dotenv
 import logging
+from weaviate import Client
+import psycopg2
 
 load_dotenv()
 
@@ -9,6 +11,11 @@ WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
 WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 INTERACTION_LOG_COLLECTION = "InteractionLog"
+
+weaviate_client = Client("http://localhost:8080")  # Example Weaviate client
+postgres_conn = psycopg2.connect(
+    dbname="your_db", user="your_user", password="your_password", host="localhost"
+)
 
 class SummaryAgent:
     def __init__(self, weaviate_client, postgres_conn):
@@ -128,3 +135,5 @@ class SummaryAgent:
         interactions = self._fetch_interactions(user_id, limit=3)
         text = self._compose_interaction_text(interactions)
         return self._summarize_with_llm(text, "short-term", max_tokens=max_tokens)
+
+summary = SummaryAgent(weaviate_client, postgres_conn)
