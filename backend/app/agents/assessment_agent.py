@@ -1,7 +1,5 @@
 import os
 from dotenv import load_dotenv
-import weaviate
-from weaviate.classes.init import Auth
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
@@ -37,6 +35,7 @@ class AssessmentResponse(BaseModel):
 
 class AssessmentAgent:
     def __init__(self):
+        import weaviate  # Lazy import to avoid circular dependency
         if "localhost" in WEAVIATE_URL or "127.0.0.1" in WEAVIATE_URL:
             self.client = weaviate.connect_to_local(
                 host="localhost",
@@ -46,7 +45,7 @@ class AssessmentAgent:
         else:
             self.client = weaviate.connect_to_weaviate_cloud(
                 cluster_url=WEAVIATE_URL,
-                auth_credentials=Auth.api_key(WEAVIATE_API_KEY),
+                auth_credentials=weaviate.Auth.api_key(WEAVIATE_API_KEY),
                 headers={"X-OpenAI-Api-Key": OPENAI_API_KEY}
             )
 
