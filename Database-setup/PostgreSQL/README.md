@@ -69,7 +69,6 @@ Tracks user learning progress, completed modules, and quiz performance.
 | `user_id` | UUID | Foreign key to users (unique, one-to-one) |
 | `completed_modules` | JSONB | Array of completed module IDs |
 | `quiz_scores` | JSONB | Object mapping module IDs to scores |
-| `interaction_log` | JSONB | Lightweight metadata (last prompts, preferences) |
 | `last_login` | TIMESTAMP | Most recent activity |
 
 **Example Data:**
@@ -81,11 +80,6 @@ Tracks user learning progress, completed modules, and quiz performance.
     "ai_basics_101": 88,
     "prompt_fundamentals": 92,
     "advanced_prompting": 85
-  },
-  "interaction_log": {
-    "last_prompts": ["How do I create ESG analysis prompts?"],
-    "recent_topics": ["use_cases", "finance"],
-    "preferences": {"prefers_examples": true}
   }
 }
 ```
