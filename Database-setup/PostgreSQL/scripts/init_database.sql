@@ -6,33 +6,24 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================
--- USERS TABLE
+-- USERS TABLE (SIMPLIFIED)
 -- ============================================
 CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     role VARCHAR(100) NOT NULL,
-    proficiency VARCHAR(20) NOT NULL DEFAULT 'Beginner',
-    learning_goals JSONB DEFAULT '[]'::jsonb,
-    learning_style VARCHAR(50),
-    time_commitment VARCHAR(20),
     short_term_summary TEXT,
     long_term_summary TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT chk_proficiency CHECK (proficiency IN ('Beginner', 'Intermediate', 'Advanced')),
     CONSTRAINT chk_role CHECK (role IN ('Finance', 'Marketing', 'Product', 'Data Science', 'Engineering', 'Operations', 'Other')),
-    CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
-    CONSTRAINT chk_learning_style CHECK (learning_style IS NULL OR learning_style IN ('visual', 'hands-on', 'reading', 'interactive', 'mixed')),
-    CONSTRAINT chk_time_commitment CHECK (time_commitment IS NULL OR time_commitment IN ('1-2 hours/week', '3-5 hours/week', '5+ hours/week'))
+    CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
 
 -- Indexes
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_proficiency ON users(proficiency);
 CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_learning_goals_gin ON users USING gin(learning_goals);
 CREATE INDEX idx_users_short_term_summary_fts ON users USING gin(to_tsvector('english', COALESCE(short_term_summary, '')));
 CREATE INDEX idx_users_long_term_summary_fts ON users USING gin(to_tsvector('english', COALESCE(long_term_summary, '')));
 
@@ -60,6 +51,25 @@ CREATE INDEX idx_progress_last_login ON progress(last_login);
 CREATE INDEX idx_progress_completed_modules_gin ON progress USING gin(completed_modules);
 CREATE INDEX idx_progress_quiz_scores_gin ON progress USING gin(quiz_scores);
 CREATE INDEX idx_progress_interaction_log_gin ON progress USING gin(interaction_log);
+
+-- ============================================
+-- INTERACTIONS TABLE
+-- ============================================
+CREATE TABLE interactions (
+    interaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    log TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for interactions
+CREATE INDEX idx_interactions_user_id ON interactions(user_id);
+CREATE INDEX idx_interactions_timestamp ON interactions(timestamp DESC);
+CREATE INDEX idx_interactions_log_fts ON interactions USING gin(to_tsvector('english', log));
+
+-- Comment
+COMMENT ON TABLE interactions IS 'Stores complete conversation logs between user and AI tutor';
+COMMENT ON COLUMN interactions.log IS 'Full conversation text including both user messages and agent responses';
 
 -- ============================================
 -- TRIGGERS
@@ -146,7 +156,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Log interaction
+-- Log interaction metadata
 CREATE OR REPLACE FUNCTION log_user_interaction(
     p_user_id UUID,
     p_interaction_data JSONB
@@ -188,133 +198,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Get combined user context
-CREATE OR REPLACE FUNCTION get_user_context(p_user_id UUID)
-RETURNS TABLE (
-    user_id UUID,
-    email VARCHAR,
-    role VARCHAR,
-    proficiency VARCHAR,
-    short_term_summary TEXT,
-    long_term_summary TEXT,
-    learning_goals JSONB,
-    learning_style VARCHAR,
-    completed_modules JSONB,
-    avg_quiz_score NUMERIC
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        u.user_id,
-        u.email,
-        u.role,
-        u.proficiency,
-        u.short_term_summary,
-        u.long_term_summary,
-        u.learning_goals,
-        u.learning_style,
-        p.completed_modules,
-        (SELECT AVG((value::text)::int) FROM jsonb_each(p.quiz_scores)) as avg_quiz_score
-    FROM users u
-    LEFT JOIN progress p ON u.user_id = p.user_id
-    WHERE u.user_id = p_user_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- ============================================
--- VIEWS
--- ============================================
-
-CREATE OR REPLACE VIEW user_profile_summary AS
-SELECT 
-    u.user_id,
-    u.email,
-    u.role,
-    u.proficiency,
-    u.learning_goals,
-    u.learning_style,
-    u.time_commitment,
-    u.short_term_summary,
-    u.long_term_summary,
-    jsonb_array_length(p.completed_modules) as modules_completed,
-    (SELECT COUNT(*) FROM jsonb_object_keys(p.quiz_scores)) as quizzes_taken,
-    (SELECT AVG((value::text)::int) FROM jsonb_each(p.quiz_scores)) as avg_quiz_score,
-    p.last_login,
-    u.created_at
-FROM users u
-LEFT JOIN progress p ON u.user_id = p.user_id;
-
--- ============================================
--- SAMPLE DATA
--- ============================================
-
--- Insert sample users
-INSERT INTO users (email, role, proficiency, learning_goals, learning_style, time_commitment, short_term_summary, long_term_summary)
-VALUES 
-    (
-        'frank.amato@federatedhermes.com', 
-        'Data Science', 
-        'Advanced', 
-        '["prompt_engineering", "use_cases", "ai_strategy"]'::jsonb, 
-        'hands-on', 
-        '3-5 hours/week',
-        'Recently focused on ESG analysis prompts. Prefers financial use case examples. Last 3 sessions covered advanced prompting techniques.',
-        'Advanced learner with strong analytical skills. Excels at applying AI to investment research. Consistently achieves high quiz scores (avg 90+). Primary focus: integrating AI into financial analysis workflows.'
-    ),
-    (
-        'jonah.woods@federatedhermes.com', 
-        'Data Science', 
-        'Advanced',
-        '["advanced_prompting", "model_evaluation", "ethics"]'::jsonb, 
-        'interactive', 
-        '5+ hours/week',
-        'Currently exploring model evaluation techniques. Shows strong interest in AI ethics and responsible use. Active learner with frequent questions.',
-        'Highly technical learner with deep understanding of AI concepts. Background in data science enables quick grasp of complex topics. Interested in both technical implementation and ethical implications.'
-    ),
-    (
-        'analyst1@federatedhermes.com', 
-        'Finance', 
-        'Beginner',
-        '["ai_basics", "prompt_engineering", "investment_use_cases"]'::jsonb, 
-        'visual', 
-        '1-2 hours/week',
-        'New to AI concepts. Struggles with technical terminology but motivated to learn. Prefers step-by-step examples with visual aids.',
-        'Beginner learner building foundational knowledge. Financial analyst background helps with business context but needs support on technical concepts. Learning style: visual and example-driven.'
-    );
-
--- Update progress for sample users
-DO $$
+-- Log conversation interaction
+CREATE OR REPLACE FUNCTION log_conversation(
+    p_user_id UUID,
+    p_log TEXT
+)
+RETURNS UUID AS $$
 DECLARE
-    v_user_id UUID;
+    v_interaction_id UUID;
 BEGIN
-    -- Frank Amato progress
-    SELECT user_id INTO v_user_id FROM users WHERE email = 'frank.amato@federatedhermes.com';
-    PERFORM add_completed_module(v_user_id, 'ai_basics_101');
-    PERFORM add_completed_module(v_user_id, 'prompt_fundamentals');
-    PERFORM add_completed_module(v_user_id, 'advanced_prompting');
-    PERFORM add_completed_module(v_user_id, 'use_case_finance');
-    PERFORM update_quiz_score(v_user_id, 'ai_basics_101', 88);
-    PERFORM update_quiz_score(v_user_id, 'prompt_fundamentals', 92);
-    PERFORM update_quiz_score(v_user_id, 'advanced_prompting', 85);
-    PERFORM update_quiz_score(v_user_id, 'use_case_finance', 90);
-    
-    -- Jonah Woods progress
-    SELECT user_id INTO v_user_id FROM users WHERE email = 'jonah.woods@federatedhermes.com';
-    PERFORM add_completed_module(v_user_id, 'ai_basics_101');
-    PERFORM add_completed_module(v_user_id, 'prompt_fundamentals');
-    PERFORM add_completed_module(v_user_id, 'advanced_prompting');
-    PERFORM add_completed_module(v_user_id, 'model_evaluation');
-    PERFORM add_completed_module(v_user_id, 'ethics_ai');
-    PERFORM update_quiz_score(v_user_id, 'ai_basics_101', 95);
-    PERFORM update_quiz_score(v_user_id, 'prompt_fundamentals', 98);
-    PERFORM update_quiz_score(v_user_id, 'advanced_prompting', 94);
-    PERFORM update_quiz_score(v_user_id, 'model_evaluation', 91);
-    PERFORM update_quiz_score(v_user_id, 'ethics_ai', 89);
-    
-    -- Finance Analyst progress
-    SELECT user_id INTO v_user_id FROM users WHERE email = 'analyst1@federatedhermes.com';
-    PERFORM add_completed_module(v_user_id, 'ai_basics_101');
-    PERFORM add_completed_module(v_user_id, 'prompt_fundamentals');
-    PERFORM update_quiz_score(v_user_id, 'ai_basics_101', 78);
-    PERFORM update_quiz_score(v_user_id, 'prompt_fundamentals', 72);
-END $$;
+    INSERT INTO interactions (user_id, log)
+    VALUES (p_user_id, p_log)
+    RETURNING int
