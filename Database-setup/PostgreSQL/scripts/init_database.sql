@@ -199,6 +199,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Log conversation interaction
+-- Log conversation interaction
 CREATE OR REPLACE FUNCTION log_conversation(
     p_user_id UUID,
     p_log TEXT
@@ -209,4 +210,8 @@ DECLARE
 BEGIN
     INSERT INTO interactions (user_id, log)
     VALUES (p_user_id, p_log)
-    RETURNING int
+    RETURNING interaction_id INTO v_interaction_id;  -- Fixed: correct column name and INTO clause
+    
+    RETURN v_interaction_id;
+END;
+$$ LANGUAGE plpgsql;
