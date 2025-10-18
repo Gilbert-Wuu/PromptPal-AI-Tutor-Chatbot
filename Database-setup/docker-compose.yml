@@ -1,5 +1,5 @@
 ---
-version: '3.4'
+# version: '3.4'
 services:
   postgres:
     image: postgres:15-alpine
@@ -15,7 +15,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ai_tutor_db}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_tutor_admin}"]
+      test: ["CMD-SHELL", "pg_isready -U ai_tutor_admin -d ai_tutor_db"]
       interval: 10s
       timeout: 5s
       retries: 5
