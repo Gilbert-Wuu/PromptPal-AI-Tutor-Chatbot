@@ -1,20 +1,25 @@
 import os
 import openai
+from openai import OpenAI
 from dotenv import load_dotenv
 import logging
-from weaviate import Client
 import psycopg2
 
 load_dotenv()
 
-WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
-WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-INTERACTION_LOG_COLLECTION = "InteractionLog"
+INTERACTION_LOG_COLLECTION = "Interactions"
 
-weaviate_client = Client("http://localhost:8080")  # Example Weaviate client
 postgres_conn = psycopg2.connect(
-    dbname="your_db", user="your_user", password="your_password", host="localhost"
+    dbname=os.getenv("POSTGRES_DB"),
+    user=os.getenv("POSTGRES_USER"),
+    password=os.getenv("POSTGRES_PASSWORD"),
+    host=os.getenv("POSTGRES_HOST"),
+    port=os.getenv("POSTGRES_PORT")
+)
+
+client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY")
 )
 
 class SummaryAgent:
@@ -24,26 +29,32 @@ class SummaryAgent:
         openai.api_key = OPENAI_API_KEY
 
     def _fetch_interactions(self, user_id, limit=None):
-        query = {
-            "where": {
-                "operator": "Equal",
-                "path": ["user_id"],
-                "valueText": user_id
-            },
-            "order": [{"path": ["timestamp"], "order": "desc"}]
-        }
-        if limit:
-            query["limit"] = limit
-        results = self.client.collections.get(INTERACTION_LOG_COLLECTION).query.fetch_objects(query)
-        return results.get("objects", [])
+        try:
+            with self.pg_conn.cursor() as cur:
+                query = """
+                        SELECT log, timestamp
+                        FROM interactions
+                        WHERE user_id = %s
+                        ORDER BY timestamp DESC \
+                        """
+                if limit:
+                    query += " LIMIT %s"
+                    cur.execute(query, (user_id, limit))
+                else:
+                    cur.execute(query, (user_id,))
+                results = cur.fetchall()
+                # Each result: (log, timestamp)
+                return [{"log": r[0], "timestamp": r[1]} for r in results]
+        except Exception as e:
+            logging.error(f"PostgreSQL interaction fetch failed: {e}")
+            return []
 
     def _compose_interaction_text(self, interactions):
         texts = []
         for item in interactions:
-            user_msg = item.get("user_message", "")
-            agent_resp = item.get("agent_response", "")
+            log = item.get("log", "")
             timestamp = item.get("timestamp", "")
-            texts.append(f"[{timestamp}] User: {user_msg}\nAgent: {agent_resp}")
+            texts.append(f"[{timestamp}] {log}")
         return "\n\n".join(texts)
 
     def _summarize_long_term(self, previous_summary, recent_interactions, max_tokens=512):
@@ -70,7 +81,7 @@ class SummaryAgent:
             return "Summary generation failed due to an internal error."
 
     def _summarize_with_llm(self, text, summary_type, max_tokens=256):
-        prompt = (
+        instructions = (
             f"You are a learning platform assistant. Your task is to generate a {summary_type} summary of the following user interactions.\n\n"
             "Context:\n"
             f"{text}\n\n"
@@ -84,22 +95,22 @@ class SummaryAgent:
             "Return your response as a plain text summary."
         )
         try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
+            response = client.responses.create(
+                model="gpt-4o",
+                instructions=instructions,
+                input=text,
                 max_tokens=max_tokens,
                 temperature=0.5
             )
-            return response.choices[0].message["content"].strip()
+            return response.output_text.strip()
         except Exception as e:
             logging.error(f"LLM summarization failed: {e}")
             return "Summary generation failed due to an internal error."
-
     def _fetch_long_term_summary(self, user_id):
         try:
             with self.pg_conn.cursor() as cur:
                 cur.execute(
-                    "SELECT long_term_summary FROM user_profiles WHERE user_id = %s",
+                    "SELECT long_term_summary FROM users WHERE user_id = %s",
                     (user_id,)
                 )
                 result = cur.fetchone()
@@ -122,7 +133,7 @@ class SummaryAgent:
             # Update summary in PostgreSQL
             with self.pg_conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE user_profiles SET long_term_summary = %s WHERE user_id = %s",
+                    "UPDATE users SET long_term_summary = %s WHERE user_id = %s",
                     (updated_summary, user_id)
                 )
                 self.pg_conn.commit()
@@ -136,4 +147,31 @@ class SummaryAgent:
         text = self._compose_interaction_text(interactions)
         return self._summarize_with_llm(text, "short-term", max_tokens=max_tokens)
 
-summary = SummaryAgent(weaviate_client, postgres_conn)
+# summary = SummaryAgent(postgres_conn)
+
+import uuid
+
+
+def main():
+    # Replace with a valid user_id from your database
+    sample_user_id = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
+
+    # Initialize SummaryAgent (no weaviate_client needed)
+    agent = SummaryAgent(None, postgres_conn)
+
+    print("Short-term summary:")
+    short_summary = agent.get_short_term_summary(sample_user_id)
+    print(short_summary)
+
+    print("\nLong-term summary:")
+    long_summary = agent.get_long_term_summary(sample_user_id)
+    print(long_summary)
+
+    print("\nUpdating long-term summary...")
+    updated_summary = agent.update_long_term_summary(sample_user_id)
+    print("Updated long-term summary:")
+    print(updated_summary)
+
+
+if __name__ == "__main__":
+    main()
