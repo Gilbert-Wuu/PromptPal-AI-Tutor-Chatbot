@@ -9,6 +9,95 @@ const navMenu = document.querySelector('.nav-menu');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
+// API Base URL
+const API_BASE_URL = "http://localhost:8000/api";
+
+// Fetch summaries
+async function fetchSummaries(userId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/summary/${userId}`);
+        if (!response.ok) throw new Error("Failed to fetch summaries");
+        const data = await response.json();
+        console.log("Summaries:", data);
+        return data;
+    } catch (error) {
+        console.error("Error fetching summaries:", error);
+        showNotification("Error fetching summaries", "error");
+    }
+}
+
+// Train agent
+async function trainAgent(userId, userRole, query) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/train`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId, user_role: userRole, query }),
+        });
+        if (!response.ok) throw new Error("Failed to train agent");
+        const data = await response.json();
+        console.log("Training response:", data);
+        return data;
+    } catch (error) {
+        console.error("Error training agent:", error);
+        showNotification("Error training agent", "error");
+    }
+}
+
+// Generate assessment
+async function generateAssessment(requestData) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/assessment`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestData),
+        });
+        if (!response.ok) throw new Error("Failed to generate assessment");
+        const data = await response.json();
+        console.log("Assessment response:", data);
+        return data;
+    } catch (error) {
+        console.error("Error generating assessment:", error);
+        showNotification("Error generating assessment", "error");
+    }
+}
+
+// Curate content
+async function curateContent(query) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/curation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query }),
+        });
+        if (!response.ok) throw new Error("Failed to curate content");
+        const data = await response.json();
+        console.log("Curation response:", data);
+        return data;
+    } catch (error) {
+        console.error("Error curating content:", error);
+        showNotification("Error curating content", "error");
+    }
+}
+
+// Navigate learning
+async function navigateLearning(userId, userRole, completedModules) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/navigate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId, user_role: userRole, completed_modules: completedModules }),
+        });
+        if (!response.ok) throw new Error("Failed to navigate learning");
+        const data = await response.json();
+        console.log("Navigation options:", data);
+        return data;
+    } catch (error) {
+        console.error("Error navigating learning:", error);
+        showNotification("Error navigating learning", "error");
+    }
+}
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
