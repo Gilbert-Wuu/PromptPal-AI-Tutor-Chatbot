@@ -5,7 +5,7 @@ Unified database setup for the AI Learning Platform, containing both PostgreSQL 
 ## Local Set Up Instructions
 ```
 # 1. Make sure you're in the right directory
-cd /Users/ljx_Resources/CMU_Study/Semester3/Capstone/DB-setup
+cd Database-setup
 
 # 2. Start Docker Desktop (and wait for it to fully start)
 open -a Docker
