@@ -1,22 +1,41 @@
 from fastapi import FastAPI, HTTPException
-from app.agents import summary_agent, trainer_agent, navigator_agent, assessment_agent, curation_agent
-from app.services.llm_router import LLMRouterService
-from app.services.openai_service import OpenAIService
-from app.services.perplexity_service import PerplexityService
+from openai import OpenAI
+
+from backend.app.agents import summary_agent, trainer_agent, navigator_agent, assessment_agent, curation_agent
 from weaviate import Client
 import psycopg2
+import os
+import dotenv
+
+# Load environment variables
+dotenv.load_dotenv()
+
+# Set up environment variables
+WEAVIATE_URL = os.getenv("WEAVIATE_URL")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+POSTGRES_DB = os.getenv("POSTGRES_DB")
+POSTGRES_USER = os.getenv("POSTGRES_USER")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT")
 
 # Initialize dependencies
-weaviate_client = Client("http://localhost:8080")  # Example Weaviate client
+weaviate_client = Client("http://localhost:8080")
 postgres_conn = psycopg2.connect(
-    dbname="your_db", user="your_user", password="your_password", host="localhost"
+    dbname=POSTGRES_DB,
+    user=POSTGRES_USER,
+    password=POSTGRES_PASSWORD,
+    host=POSTGRES_HOST,
+    port=POSTGRES_PORT
 )
-llm_client = OpenAIService()  # Replace with actual LLM client
-perplexity_api_key = "your_perplexity_api_key"
+
+llm_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize agents
-summary = summary_agent.SummaryAgent(weaviate_client, postgres_conn)
-curation = curation_agent.CurationAgent(perplexity_api_key)
+summary = summary_agent.SummaryAgent(postgres_conn, llm_client)
+curation = curation_agent.CurationAgent(llm_client)
 trainer = trainer_agent.TrainerAgent(weaviate_client, summary, curation, llm_client)
 navigator = navigator_agent.NavigatorAgent(llm_client, summary)
 assessment = assessment_agent.AssessmentAgent()

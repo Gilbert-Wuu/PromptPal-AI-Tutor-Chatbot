@@ -11,59 +11,47 @@
 -- USERS MOCK DATA
 -- ============================================
 
-INSERT INTO users (email, role, short_term_summary, long_term_summary) VALUES
+INSERT INTO users (email, role, long_term_summary) VALUES
 -- Finance Users
 ('sarah.chen@company.com', 'Finance', 
- 'Recent sessions focused on understanding LLM fundamentals and prompt engineering for financial analysis. Completed modules on document Q&A and comparison analysis. Asked detailed questions about using AI for 10-K analysis and regulatory compliance. Struggling slightly with advanced prompt techniques.',
  'Strong analytical background with focus on financial documentation. Consistently interested in practical applications for regulatory compliance and financial reporting. Shows aptitude for structured thinking but needs more practice with creative prompt engineering. Key milestone: Successfully implemented document comparison workflow for quarterly reports.'),
 
 ('michael.ross@company.com', 'Finance',
- 'Last three sessions covered AI safety and ethics in financial applications. Working through intermediate prompt engineering techniques. Recently explored use cases for risk assessment and portfolio analysis. Shows good understanding of context setting.',
  'Finance professional with 5+ years experience. Quick learner with systematic approach to AI concepts. Strengths: data analysis, compliance understanding. Weaknesses: technical implementation details. Completed 8 modules with average quiz score of 85%. Primary interest in automation of repetitive tasks.'),
 
 -- Marketing Users
 ('emily.johnson@company.com', 'Marketing',
- 'Currently exploring content generation and brand voice consistency using LLMs. Completed beginner prompt engineering modules. Recent focus on campaign ideation and A/B testing copy variations. Asking questions about maintaining brand guidelines in AI outputs.',
  'Creative marketer transitioning to AI-enhanced workflows. Excels at understanding user personas and crafting targeted messages. Learning curve with technical concepts but strong practical application skills. Milestone: Created automated email campaign generator. Consistently achieves 90%+ on creative application quizzes.'),
 
 ('david.kim@company.com', 'Marketing',
- 'Working through advanced prompt techniques for market research analysis. Recent sessions on competitive analysis automation and sentiment analysis. Completed modules on clear instructions and output formatting. Interested in social media monitoring.',
  'Digital marketing specialist with strong analytical bent. Balanced creative and data-driven approach. Quick to grasp AI concepts and translate to marketing contexts. Weakness: Sometimes over-complicates prompts. Strength: Excellent at iterative refinement. 12 modules completed.'),
 
 -- Product Users
 ('lisa.wang@company.com', 'Product',
- 'Recent focus on user story generation and PRD automation. Exploring few-shot prompting for feature prioritization. Completed intermediate modules on context setting and chain-of-thought reasoning. Questions about integrating AI into product development cycles.',
  'Senior PM with technical background. Natural understanding of AI capabilities and limitations. Strengths: systematic thinking, user empathy, technical translation. Growth area: creative exploration of AI possibilities. Key achievement: Implemented AI-assisted user research workflow.'),
 
 ('james.martinez@company.com', 'Product',
- 'Last sessions covered requirements gathering automation and stakeholder communication templates. Working on advanced prompt engineering for technical documentation. Shows strong grasp of structured output formatting.',
  'Product manager focusing on B2B solutions. Methodical learner with emphasis on practical implementation. Completed 15 modules with 88% average score. Particularly interested in AI for competitive analysis and roadmap planning. Building expertise in prompt templates.'),
 
 -- Data Science Users
 ('priya.patel@company.com', 'Data Science',
- 'Advanced user exploring fine-tuning concepts and model evaluation. Recent sessions on prompt optimization for data analysis tasks. Completed all fundamental modules. Current focus: integrating LLMs with existing ML pipelines.',
  'Experienced data scientist with deep technical knowledge. Fast learner who quickly grasps advanced concepts. Strengths: technical implementation, experimental design. Growth area: business application communication. Milestone: Created custom evaluation framework for LLM outputs. Perfect quiz scores across 20+ modules.'),
 
 ('alex.nguyen@company.com', 'Data Science',
- 'Working through advanced prompt engineering for code generation and debugging. Recent interest in RAG systems and vector databases. Completed modules on AI safety and ethical considerations. Questions about model limitations.',
  'ML engineer transitioning to LLM applications. Strong programming background with focus on production systems. Excels at technical implementation but working on business context understanding. 18 modules completed. Primary interest: Building scalable AI solutions.'),
 
 -- Engineering Users
 ('robert.taylor@company.com', 'Engineering',
- 'Currently learning prompt engineering for code review and documentation. Recent sessions on debugging assistance and test generation. Completed beginner modules. Showing interest in API integration patterns.',
  'Software engineer new to AI/ML. Pragmatic approach focused on immediate productivity gains. Strengths: systematic debugging, clear documentation. Learning curve: understanding model capabilities. Milestone: Automated 30% of code review process. Quiz average: 82%.'),
 
 ('maria.gonzalez@company.com', 'Engineering',
- 'Exploring advanced techniques for system design and architecture documentation. Recent focus on using AI for technical debt identification. Completed intermediate prompt engineering. Questions about security considerations.',
  'Senior engineer with 10+ years experience. Cautious but thorough approach to AI adoption. Strong focus on reliability and security. Weakness: Sometimes overthinks prompt complexity. Strength: Excellent at creating reusable templates. 14 modules completed.'),
 
 -- Operations Users
 ('kevin.lee@company.com', 'Operations',
- 'Recent sessions on process automation and workflow optimization. Working through modules on clear instructions and output formatting. Interested in inventory management and supply chain applications. Completed basic prompt engineering.',
  'Operations manager seeking efficiency improvements. Practical mindset with focus on ROI. Strengths: process thinking, stakeholder management. Growth area: technical understanding. Key achievement: Reduced report generation time by 60%. Average quiz score: 78%.'),
 
 ('amanda.white@company.com', 'Operations',
- 'Currently exploring AI for capacity planning and resource allocation. Recent focus on data extraction from operational reports. Completed intermediate modules. Questions about integration with existing systems.',
  'Operations analyst with strong Excel background. Methodical learner with attention to detail. Excels at identifying automation opportunities. Working on creative problem-solving with AI. 10 modules completed. Primary focus: Operational reporting automation.');
 
 -- ============================================
