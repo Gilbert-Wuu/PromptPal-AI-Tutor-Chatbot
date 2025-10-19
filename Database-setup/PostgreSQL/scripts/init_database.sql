@@ -12,6 +12,7 @@ CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     role VARCHAR(100) NOT NULL,
+    short_term_summary TEXT,
     long_term_summary TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -23,9 +24,11 @@ CREATE TABLE users (
 -- Indexes
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_short_term_summary_fts ON users USING gin(to_tsvector('english', COALESCE(short_term_summary, '')));
 CREATE INDEX idx_users_long_term_summary_fts ON users USING gin(to_tsvector('english', COALESCE(long_term_summary, '')));
 
 -- Comments
+COMMENT ON COLUMN users.short_term_summary IS 'Recent conversation context and immediate learning state (rolling window of last few sessions)';
 COMMENT ON COLUMN users.long_term_summary IS 'Persistent learning patterns, strengths, weaknesses, and key milestones';
 
 -- ============================================
@@ -167,6 +170,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Update short-term summary
+CREATE OR REPLACE FUNCTION update_short_term_summary(
+    p_user_id UUID,
+    p_summary TEXT
+)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE users
+    SET short_term_summary = p_summary,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = p_user_id;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Update long-term summary
 CREATE OR REPLACE FUNCTION update_long_term_summary(
@@ -183,6 +199,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Log conversation interaction
+-- Log conversation interaction
 CREATE OR REPLACE FUNCTION log_conversation(
     p_user_id UUID,
     p_log TEXT
@@ -194,7 +211,7 @@ BEGIN
     INSERT INTO interactions (user_id, log)
     VALUES (p_user_id, p_log)
     RETURNING interaction_id INTO v_interaction_id;  -- Fixed: correct column name and INTO clause
-
+    
     RETURN v_interaction_id;
 END;
 $$ LANGUAGE plpgsql;
