@@ -62,7 +62,11 @@ class SummaryAgent:
                 input=prompt,
                 max_output_tokens=max_tokens,
             )
-            return response.output[0].content[0].text.strip()
+            text = self._extract_response_text(response)
+            if not text:
+                logging.error("LLM returned empty long-term summary response: %s", response)
+                return "Summary generation failed due to an internal error."
+            return text
         except Exception as e:
             logging.error(f"LLM long-term summarization failed: {e}")
             return "Summary generation failed due to an internal error."
@@ -87,10 +91,103 @@ class SummaryAgent:
                 input=instructions,
                 max_output_tokens=max_tokens,
             )
-            return response.output[0].content[0].text.strip()
+            text = self._extract_response_text(response)
+            if not text:
+                logging.error("LLM returned empty summarization response: %s", response)
+                return "Summary generation failed due to an internal error."
+            return text
         except Exception as e:
             logging.error(f"LLM summarization failed: {e}")
             return "Summary generation failed due to an internal error."
+
+    def _extract_response_text(self, response):
+        try:
+            if response is None:
+                return None
+
+            # 1) SDK attribute: output_text
+            if hasattr(response, "output_text") and response.output_text:
+                return str(response.output_text).strip()
+
+            # 2) SDK attribute: output (list/dict/str)
+            if hasattr(response, "output") and response.output:
+                out = response.output
+                # list-like
+                if isinstance(out, (list, tuple)) and len(out) > 0:
+                    first = out[0]
+                    # dict-like first item
+                    if isinstance(first, dict):
+                        # common nested shape: {"content": [{"text": "..."}]}
+                        content = first.get("content")
+                        if isinstance(content, (list, tuple)) and len(content) > 0:
+                            c0 = content[0]
+                            if isinstance(c0, dict) and c0.get("text"):
+                                return str(c0.get("text")).strip()
+                        # fallback to direct text field
+                        if first.get("text"):
+                            return str(first.get("text")).strip()
+                    elif isinstance(first, str):
+                        return first.strip()
+                    else:
+                        # SDK objects (e.g., ResponseReasoningItem) may expose attributes instead of dict keys
+                        # Try attribute-based extraction gracefully.
+                        # content attribute
+                        content_attr = getattr(first, "content", None)
+                        if isinstance(content_attr, (list, tuple)) and len(content_attr) > 0:
+                            c0 = content_attr[0]
+                            # c0 could be dict or object
+                            if isinstance(c0, dict) and c0.get("text"):
+                                return str(c0.get("text")).strip()
+                            if hasattr(c0, "text") and getattr(c0, "text"):
+                                return str(getattr(c0, "text")).strip()
+                        if isinstance(content_attr, str) and content_attr:
+                            return content_attr.strip()
+                        # direct text attribute
+                        if hasattr(first, "text") and getattr(first, "text"):
+                            return str(getattr(first, "text")).strip()
+                        # summary attribute (list of strings)
+                        summary_attr = getattr(first, "summary", None)
+                        if isinstance(summary_attr, (list, tuple)) and len(summary_attr) > 0:
+                            try:
+                                return "\n".join([str(s).strip() for s in summary_attr if s])
+                            except Exception:
+                                pass
+                        # fallback: string-convert the object
+                        try:
+                            s = str(first)
+                            if s:
+                                return s.strip()
+                        except Exception:
+                            pass
+                # if output is plain string
+                if isinstance(out, str) and out:
+                    return out.strip()
+
+            # 3) dict-like response (raw)
+            if isinstance(response, dict):
+                if response.get("output_text"):
+                    return str(response.get("output_text")).strip()
+                out = response.get("output")
+                if out:
+                    if isinstance(out, list) and len(out) > 0 and isinstance(out[0], dict):
+                        content = out[0].get("content")
+                        if isinstance(content, list) and len(content) > 0 and isinstance(content[0], dict) and content[0].get("text"):
+                            return str(content[0].get("text")).strip()
+                        if out[0].get("text"):
+                            return str(out[0].get("text")).strip()
+                    if isinstance(out, str):
+                        return out.strip()
+
+            # 4) Fallback: try common fields
+            for key in ("text", "content", "message", "choices"):
+                if isinstance(response, dict) and key in response and response[key]:
+                    return str(response[key]).strip()
+
+            # 5) Last resort: stringify
+            return str(response).strip()
+        except Exception as e:
+            logging.error(f"Failed to extract text from LLM response: {e}")
+            return None
 
 
     def _fetch_long_term_summary(self, user_id):
@@ -133,52 +230,48 @@ class SummaryAgent:
         text = self._compose_interaction_text(interactions)
         return self._summarize_with_llm(text, "short-term", max_tokens=max_tokens)
 
-# summary = SummaryAgent(postgres_conn)
 
-import uuid
+def main():
+    dotenv.load_dotenv()
+
+    # Set up environment variables
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+    POSTGRES_DB = os.getenv("POSTGRES_DB")
+    POSTGRES_USER = os.getenv("POSTGRES_USER")
+    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+    print(POSTGRES_PASSWORD)
+    print(POSTGRES_USER)
+
+    # Initialize dependencies
+    postgres_conn = psycopg2.connect(
+        dbname=POSTGRES_DB,
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        host=POSTGRES_HOST,
+        port=POSTGRES_PORT
+    )
+
+    lllm_client = OpenAI(api_key=OPENAI_API_KEY)
+    sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
+
+    agent = SummaryAgent(postgres_conn, lllm_client)
+
+    print("Short-term summary:")
+    short_summary = agent.get_short_term_summary(sample_user_id)
+    print(short_summary)
+
+    print("\nLong-term summary:")
+    long_summary = agent.get_long_term_summary(sample_user_id)
+    print(long_summary)
+
+    print("\nUpdating long-term summary...")
+    updated_summary = agent.update_long_term_summary(sample_user_id)
+    print("Updated long-term summary:")
+    print(updated_summary)
 
 
-# def main():
-#     dotenv.load_dotenv()
-#
-#     # Set up environment variables
-#     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-#
-#     POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-#     POSTGRES_DB = os.getenv("POSTGRES_DB")
-#     POSTGRES_USER = os.getenv("POSTGRES_USER")
-#     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-#     POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-#     print(POSTGRES_PASSWORD)
-#     print(POSTGRES_USER)
-#
-#     # Initialize dependencies
-#     postgres_conn = psycopg2.connect(
-#         dbname=POSTGRES_DB,
-#         user=POSTGRES_USER,
-#         password=POSTGRES_PASSWORD,
-#         host=POSTGRES_HOST,
-#         port=POSTGRES_PORT
-#     )
-#
-#     lllm_client = OpenAI(api_key=OPENAI_API_KEY)
-#     sample_user_id = uuid.UUID("426b13de-66a6-4b45-8631-0ead896d7d54")
-#
-#     agent = SummaryAgent(postgres_conn, lllm_client)
-#
-#     print("Short-term summary:")
-#     short_summary = agent.get_short_term_summary(sample_user_id)
-#     print(short_summary)
-#
-#     print("\nLong-term summary:")
-#     long_summary = agent.get_long_term_summary(sample_user_id)
-#     print(long_summary)
-#
-#     print("\nUpdating long-term summary...")
-#     updated_summary = agent.update_long_term_summary(sample_user_id)
-#     print("Updated long-term summary:")
-#     print(updated_summary)
-#
-#
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()
