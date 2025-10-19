@@ -1,4 +1,3 @@
-perplexity
 weaviate-client==4.17.0
 openai==2.5.0
 python-dotenv==1.0.1
