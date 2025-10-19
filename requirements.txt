@@ -3,23 +3,18 @@ openai==2.5.0
 python-dotenv==1.0.1
 fastapi==0.115.0
 uvicorn[standard]==0.38.0
-pydantic==2.9.0
+# pydantic==2.9.0
 requests
-logging
-typing
-uuid
-pandas
+# pandas
 tqdm
 protobuf
-pydantic
 asyncpg
 sqlalchemy
 python-multipart
 langchain
 langchain-community
 sentence-transformers
-datasets
+# datasets
 transformers
 langchain-openai
-openai
-requests
+psycopg2-binary

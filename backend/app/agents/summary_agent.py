@@ -232,6 +232,9 @@ class SummaryAgent:
 
 
 def main():
+    if 'OPENAI_API_KEY' in os.environ:
+        del os.environ['OPENAI_API_KEY']
+        
     dotenv.load_dotenv()
 
     # Set up environment variables
