@@ -193,4 +193,8 @@ DECLARE
 BEGIN
     INSERT INTO interactions (user_id, log)
     VALUES (p_user_id, p_log)
-    RETURNING int
+    RETURNING interaction_id INTO v_interaction_id;  -- Fixed: correct column name and INTO clause
+
+    RETURN v_interaction_id;
+END;
+$$ LANGUAGE plpgsql;
