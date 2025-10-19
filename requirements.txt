@@ -11,7 +11,6 @@ uuid
 pandas
 tqdm
 protobuf
-pydantic
 asyncpg
 sqlalchemy
 python-multipart
@@ -21,5 +20,3 @@ sentence-transformers
 datasets
 transformers
 langchain-openai
-openai
-requests
