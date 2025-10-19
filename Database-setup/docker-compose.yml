@@ -1,5 +1,5 @@
 ---
-# version: '3.4'
+#version: '3.4'
 services:
   postgres:
     image: postgres:15-alpine
@@ -15,10 +15,28 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ai_tutor_db}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ai_tutor_admin -d ai_tutor_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_tutor_admin} -d ${POSTGRES_DB:-ai_tutor_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - ai_tutor_network
+
+  # yaml
+  db_init:
+    image: postgres:15-alpine
+    container_name: ai_tutor_db_init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./PostgreSQL/scripts/mock_data_insert.sql:/docker-entrypoint-initdb.d/mock_data_insert.sql:ro
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_tutor_admin}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_tutor_db}
+    command: [ "sh", "-c", "until pg_isready -h postgres -U ${POSTGRES_USER:-ai_tutor_admin} -d ${POSTGRES_DB:-ai_tutor_db}; do sleep 1; done; psql -h postgres -U ${POSTGRES_USER:-ai_tutor_admin} -d ${POSTGRES_DB:-ai_tutor_db} -f /docker-entrypoint-initdb.d/mock_data_insert.sql" ]
+    restart: "no"
     networks:
       - ai_tutor_network
 
