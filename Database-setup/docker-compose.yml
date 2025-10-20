@@ -48,7 +48,7 @@ services:
       - '8080'
       - --scheme
       - http
-    image: cr.weaviate.io/semitechnologies/weaviate:1.26.1
+    image: cr.weaviate.io/semitechnologies/weaviate:1.27.1
     container_name: ai_tutor_weaviate
     ports:
       - "8080:8080"

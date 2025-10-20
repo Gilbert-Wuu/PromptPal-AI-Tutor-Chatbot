@@ -5,9 +5,6 @@ fastapi==0.115.0
 uvicorn[standard]==0.38.0
 pydantic==2.9.0
 requests
-logging
-typing
-uuid
 pandas
 tqdm
 protobuf
@@ -20,3 +17,4 @@ sentence-transformers
 datasets
 transformers
 langchain-openai
+psycopg2-binary
