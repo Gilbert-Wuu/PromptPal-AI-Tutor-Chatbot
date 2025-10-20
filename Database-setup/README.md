@@ -6,14 +6,11 @@ Unified database setup for the AI Learning Platform, containing both PostgreSQL 
 ```
 # 1. Make sure you're in the right directory
 cd Database-setup
-
 # 2. Start Docker Desktop (and wait for it to fully start)
 open -a Docker
 sleep 30  # Wait for Docker to start
-
 # 3. Verify Docker is running
 docker ps
-
 # 4. Create .env file if it doesn't exist
 if [ ! -f .env ]; then
     echo "Creating .env file..."
@@ -24,14 +21,11 @@ POSTGRES_DB=ai_tutor_db
 OPENAI_API_KEY=sk-dummy-key-for-testing
 EOF
 fi
-
 # 5. Verify environment variables are set
 source .env
 echo "Password is: $POSTGRES_PASSWORD"
-
 # 6. Now start your containers
 docker-compose up -d
-
 # 7. Check if containers are running
 docker-compose ps
 ```
