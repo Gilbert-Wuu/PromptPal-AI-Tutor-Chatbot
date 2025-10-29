@@ -1,0 +1,152 @@
+/* General container for all states */
+.container {
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+    font-family: sans-serif;
+    text-align: center;
+}
+
+/* Topic Selection */
+.select {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin: 1.5rem 0;
+}
+
+.button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    background-color: #0070f3;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+}
+
+.button:hover:not(:disabled) {
+    background-color: #005bb5;
+}
+
+.button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* In-Progress Quiz */
+.progress {
+    font-size: 0.9rem;
+    color: #888;
+    margin-bottom: 1rem;
+}
+
+.questionText {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin: 1.5rem 0;
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.optionButton {
+    padding: 15px;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.optionButton:hover {
+    border-color: #0070f3;
+    background-color: #eaf5ff;
+}
+
+.optionKey {
+    font-weight: bold;
+    margin-right: 15px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.selected {
+    border-color: #0070f3;
+    background-color: #0070f3;
+    color: white;
+}
+
+/* Results View */
+.resultsContainer {
+    text-align: left;
+}
+
+.score {
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #0070f3;
+}
+
+.reviewItem {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #eee;
+}
+
+.reviewItem:last-child {
+    border-bottom: none;
+}
+
+.correct {
+    color: #28a745;
+}
+
+.incorrect {
+    color: #dc3545;
+}
+
+.explanation {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    border-left: 3px solid #ccc;
+    margin-top: 10px;
+    color: #555;
+}
+
+/* Loader */
+.loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

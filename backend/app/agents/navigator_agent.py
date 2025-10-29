@@ -4,7 +4,7 @@ from openai import OpenAI
 import weaviate
 import os
 import psycopg2
-from summary_agent import SummaryAgent
+from .summary_agent import SummaryAgent
 
 class NavigatorAgent:
     def __init__(self, llm, summary_agent, model="gpt-4"):

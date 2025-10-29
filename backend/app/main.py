@@ -10,6 +10,7 @@ import dotenv
 # Load environment variables
 dotenv.load_dotenv()
 
+
 # Set up environment variables
 WEAVIATE_URL = os.getenv("WEAVIATE_URL")
 
