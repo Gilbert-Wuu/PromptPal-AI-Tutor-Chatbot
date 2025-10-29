@@ -39,7 +39,7 @@ services:
     restart: "no"
     networks:
       - ai_tutor_network
-
+  
   weaviate:
     command:
       - --host
@@ -67,6 +67,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - ai_tutor_network
+
+  weaviate_init:
+    image: python:3.11-slim
+    container_name: ai_tutor_weaviate_init
+    depends_on:
+      - weaviate
+    volumes:
+      - ./Vector DB/scripts:/scripts:ro
+      - ./.env:/app/.env:ro
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WEAVIATE_URL: http://weaviate:8080
+    working_dir: /scripts
+    command: >
+      sh -c "
+        pip install --no-cache-dir weaviate-client python-dotenv &&
+        sleep 10 &&
+        python setup_weaviate.py &&
+        python load_data.py
+      "
+    restart: "no"
     networks:
       - ai_tutor_network
 
