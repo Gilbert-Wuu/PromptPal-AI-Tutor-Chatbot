@@ -16,7 +16,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT chk_role CHECK (role IN ('Finance', 'Marketing', 'Product', 'Data Science', 'Engineering', 'Operations', 'Other')),
+    -- CONSTRAINT chk_role CHECK (role IN ('Finance', 'Marketing', 'Product', 'Data Science', 'Engineering', 'Operations', 'Other')),
     CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
 

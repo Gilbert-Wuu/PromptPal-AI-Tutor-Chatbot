@@ -1,64 +1,71 @@
 .main {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    padding: 4rem;
+    justify-content: center;
+    min-height: calc(100vh - 80px);
+    padding: 2rem;
     background-color: #f8f9fa;
 }
 
-.header {
-    text-align: center;
-    margin-bottom: 3rem;
+.chatSection {
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    max-width: 900px;
+    width: 100%;
+    height: 650px;
+    margin: 0 auto;
+}
+
+.chatHeader {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #eaeaea;
+    background: linear-gradient(135deg, #b5e2ff 0%, #6bb6ff 100%);
+    color: #003366;
 }
 
 .title {
-    font-size: 3.5rem;
+    font-size: 1.75rem;
     font-weight: 700;
-    color: #333;
     margin: 0;
 }
 
 .subtitle {
-    font-size: 1.25rem;
-    color: #666;
-    margin-top: 0.5rem;
+    font-size: 0.95rem;
+    margin: 0.25rem 0 0 0;
+    opacity: 0.95;
 }
 
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 2rem;
-    width: 100%;
-    max-width: 1000px;
+.chatWrapper {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
 }
 
-.card {
-    padding: 2rem;
-    border-radius: 12px;
-    background: white;
-    border: 1px solid #eaeaea;
-    transition: all 0.2s ease-in-out;
-    text-decoration: none;
-    color: inherit;
-}
+/* Responsive design */
+@media (max-width: 768px) {
+    .main {
+        padding: 1rem;
+    }
 
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    border-color: #0070f3;
-}
+    .chatSection {
+        height: 550px;
+        max-width: 100%;
+    }
 
-.card h2 {
-    font-size: 1.5rem;
-    margin: 0 0 1rem;
-    color: #0070f3;
-}
+    .chatHeader {
+        padding: 1rem 1.5rem;
+    }
 
-.card p {
-    font-size: 1rem;
-    line-height: 1.6;
-    margin: 0;
-    color: #555;
+    .title {
+        font-size: 1.5rem;
+    }
+
+    .subtitle {
+        font-size: 0.875rem;
+    }
 }

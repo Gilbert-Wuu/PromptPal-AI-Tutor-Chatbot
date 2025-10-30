@@ -15,24 +15,80 @@
 }
 
 .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+}
+
+.logoImage {
+    border-radius: 6px;
+    width: auto;
+    height: 45px;
+    max-width: 100%;
+}
+
+.logoText {
     font-size: 1.25rem;
     font-weight: 600;
     color: #333;
-    text-decoration: none;
 }
 
 .nav {
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
+    align-items: center;
 }
 
-.navLink {
-    font-size: 1rem;
-    color: #555;
+.featureButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: linear-gradient(135deg, #b5e2ff 0%, #6bb6ff 100%);
+    color: #003366;
+    border-radius: 8px;
     text-decoration: none;
-    transition: color 0.2s ease-in-out;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 2px 8px rgba(181, 226, 255, 0.4);
 }
 
-.navLink:hover {
-    color: #0070f3;
+.featureButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(181, 226, 255, 0.6);
+}
+
+.icon {
+    font-size: 1.1rem;
+}
+
+.userSection {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-left: 1rem;
+    border-left: 1px solid #eaeaea;
+}
+
+.userInfo {
+    font-size: 0.875rem;
+    color: #666;
+}
+
+.logoutButton {
+    padding: 0.5rem 1rem;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.logoutButton:hover {
+    background-color: #e5e5e5;
+    border-color: #ccc;
 }
