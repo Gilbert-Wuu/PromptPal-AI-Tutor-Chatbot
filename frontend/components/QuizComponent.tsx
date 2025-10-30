@@ -22,6 +22,8 @@ interface QuizData {
     questions: Question[];
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 const QuizComponent = () => {
     // State management for the entire quiz flow
     const [topics, setTopics] = useState<Topic[]>([]);
@@ -36,7 +38,7 @@ const QuizComponent = () => {
     useEffect(() => {
         const fetchTopics = async () => {
             try {
-                const response = await axios.get('http://127.0.0.1:8000/topics/');
+                const response = await axios.get(`${API_BASE_URL}/topics/`);
                 setTopics(response.data);
             } catch (error) {
                 console.error("Failed to fetch topics:", error);
@@ -51,7 +53,7 @@ const QuizComponent = () => {
         try {
             // NOTE: Using your AssessmentAgent directly for simplicity.
             // In a real app, you'd call your `/assessment/start` endpoint.
-            const response = await axios.post('http://127.0.0.1:8000/assessment/start', {
+            const response = await axios.post(`${API_BASE_URL}/assessment/start`, {
                 topic: selectedTopic,
             });
             if (response.data && response.data.quiz_data) {

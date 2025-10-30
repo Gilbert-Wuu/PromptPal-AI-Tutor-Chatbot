@@ -11,6 +11,8 @@ interface Message {
     content: string;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 const ChatComponent = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -36,7 +38,7 @@ const ChatComponent = () => {
 
             // Fetch initial suggestions
             try {
-                const response = await axios.post('http://127.0.0.1:8000/chat/', {
+                const response = await axios.post(`${API_BASE_URL}/chat/`, {
                     content: "Initial greeting", // A dummy message to trigger the navigator
                 });
                 // We only care about the suggestions here, not the answer
@@ -60,7 +62,7 @@ const ChatComponent = () => {
         setInputValue(''); // Clear input field
 
         try {
-            const response = await axios.post('http://127.0.0.1:8000/chat/', {
+            const response = await axios.post(`${API_BASE_URL}/chat/`, {
                 content: query,
             });
             const { answer, suggestions: newSuggestions } = response.data;
