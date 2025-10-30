@@ -39,10 +39,21 @@ print("=" * 60)
 # ============================================
 print("\nConnecting to Weaviate...")
 
-if "localhost" in WEAVIATE_URL or "127.0.0.1" in WEAVIATE_URL:
+if "localhost" in WEAVIATE_URL or "127.0.0.1" in WEAVIATE_URL or "weaviate" in WEAVIATE_URL:
     print("  Using LOCAL Weaviate")
+
+    # Determine host based on URL
+    if "weaviate:" in WEAVIATE_URL or WEAVIATE_URL == "http://weaviate:8080":
+        # Running in Docker, use service name
+        host = "weaviate"
+        print(f"  Docker mode: Connecting to {host}:8080")
+    else:
+        # Running locally
+        host = "localhost"
+        print(f"  Local mode: Connecting to {host}:8080")
+
     weaviate_client = weaviate.connect_to_local(
-        host="localhost",
+        host=host,
         port=8080,
         headers={"X-OpenAI-Api-Key": OPENAI_API_KEY}
     )
@@ -90,35 +101,6 @@ try:
 except Exception as e:
     print(f"✗ Error: {e}")
 
-# ============================================
-# Create CoreConcept Collection
-# ============================================
-print("Creating CoreConcept collection...")
-
-try:
-    if weaviate_client.collections.exists(CORE_CONCEPT_COLLECTION):
-        weaviate_client.collections.delete(CORE_CONCEPT_COLLECTION)
-        print("  Deleted existing collection")
-
-    weaviate_client.collections.create(
-        name=CORE_CONCEPT_COLLECTION,
-        vectorizer_config=Configure.Vectorizer.text2vec_openai(
-            model=EMBEDDING_MODEL
-        ),
-        properties=[
-            Property(name="content_id", data_type=DataType.TEXT),
-            Property(name="title", data_type=DataType.TEXT),
-            Property(name="content", data_type=DataType.TEXT),
-            Property(name="topic", data_type=DataType.TEXT),
-            Property(name="role", data_type=DataType.TEXT),
-            Property(name="content_type", data_type=DataType.TEXT),
-            Property(name="tags", data_type=DataType.TEXT_ARRAY),
-        ]
-    )
-    print("✓ CoreConcept collection created")
-
-except Exception as e:
-    print(f"✗ Error: {e}")
 
 # ============================================
 # Create UseCase Collection
