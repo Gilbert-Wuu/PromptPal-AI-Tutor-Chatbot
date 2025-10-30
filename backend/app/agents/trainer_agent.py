@@ -64,46 +64,49 @@ class TrainerAgent:
                 # Weaviate v4 client
                 try:
                     concept_collection = self.weaviate_client.collections.get("CoreConcept")
+                    
+                    # Combine query components into a single string
+                    combined_query = f"{query} {short_term} {long_term}".strip()
+                    
+                    # Use near_text with single string query (not a list)
                     results = concept_collection.query.near_text(
-                        query=[query, short_term, long_term],
-                        where={"path": ["role"], "operator": "Equal", "valueText": user_role},
-                        limit=5
+                        query=combined_query,  # Changed from list to string
+                        limit=10
                     )
                     
-                    # Convert v4 results to expected format
+                    # Convert v4 results and filter by role manually
                     formatted_results = []
                     for obj in results.objects:
                         props = obj.properties
-                        formatted_results.append({
-                            "content_id": props.get("content_id", ""),
-                            "title": props.get("title", ""),
-                            "content": props.get("content", ""),
-                            "topic": props.get("topic", ""),
-                            "role": props.get("role", ""),
-                            "content_type": props.get("content_type", ""),
-                            "tags": props.get("tags", []),
-                            "importance_score": props.get("importance_score", 1.0)
-                        })
+                        obj_role = props.get("role", "").lower()
+                        
+                        # Manual role filtering
+                        if not user_role or obj_role == user_role.lower() or not obj_role:
+                            formatted_results.append({
+                                "content_id": props.get("content_id", ""),
+                                "title": props.get("title", ""),
+                                "content": props.get("content", ""),
+                                "topic": props.get("topic", ""),
+                                "role": props.get("role", ""),
+                                "content_type": props.get("content_type", ""),
+                                "tags": props.get("tags", []),
+                                "importance_score": props.get("importance_score", 1.0)
+                            })
+                            
+                            if len(formatted_results) >= 5:
+                                break
+                    
+                    print(f"✅ Weaviate search returned {len(formatted_results)} results")
                     return formatted_results
-                except Exception:
-                    # Fall through to v3 client if v4 fails
-                    pass
+                    
+                except Exception as e:
+                    logging.error(f"Error with v4 client search: {e}")
+                    print(f"⚠️  Weaviate v4 search failed: {e}")
+                    return []
             
-            # Weaviate v3 client (original main.py uses this)
-            try:
-                results = self.weaviate_client.query.get(
-                    "CoreConcept",
-                    ["content_id", "title", "content", "topic", "role", "content_type", "tags", "importance_score"]
-                ).with_near_text({
-                    "concepts": [query, short_term, long_term]
-                }).with_where({
-                    "path": ["role"],
-                    "operator": "Equal",
-                    "valueText": user_role
-                }).with_limit(5).do().get("data", {}).get("Get", {}).get("CoreConcept", [])
-                return results if results else []
-            except Exception as e:
-                logging.error(f"Error with v3 client search: {e}")
+            # Weaviate v3 client - should not reach here with v4 client
+            else:
+                logging.error("Weaviate client version not supported")
                 return []
                 
         except Exception as e:
@@ -197,21 +200,13 @@ class TrainerAgent:
         """Update user's learning progress when they complete a module"""
         cursor = self.postgres_client.cursor()
         try:
-            # Add completed module to progress
+            # Use the helper function from init_database.sql
             cursor.execute("""
-                UPDATE progress 
-                SET completed_modules = 
-                    CASE 
-                        WHEN completed_modules @> to_jsonb(%s::text)
-                        THEN completed_modules
-                        ELSE completed_modules || to_jsonb(%s::text)
-                    END,
-                    last_login = CURRENT_TIMESTAMP
-                WHERE user_id = %s
-            """, (completed_module, completed_module, user_id))
+                SELECT add_completed_module(%s, %s)
+            """, (user_id, completed_module))
             
             self.postgres_client.commit()
-            return cursor.rowcount > 0
+            return True
             
         except Exception as e:
             logging.error(f"Error updating learning progress: {e}")
@@ -224,7 +219,7 @@ class TrainerAgent:
         """Get analytics about user's learning progress"""
         cursor = self.postgres_client.cursor()
         try:
-            # Get user progress and interaction count
+            # Fixed query - use interaction_id from interactions table
             cursor.execute("""
                 SELECT 
                     u.role,
@@ -248,8 +243,9 @@ class TrainerAgent:
             completed_modules = []
             if result[2]:
                 try:
-                    completed_modules = result[2] if isinstance(result[2], list) else json.loads(result[2])
-                except (json.JSONDecodeError, TypeError):
+                    # PostgreSQL returns JSONB as list already
+                    completed_modules = result[2] if isinstance(result[2], list) else []
+                except (TypeError, ValueError):
                     completed_modules = []
             
             return {
@@ -344,6 +340,57 @@ def main():
         print(f"❌ PostgreSQL connection error: {e}")
         return
 
+    # CREATE TEST USER FIRST - Fixed to match schema
+    sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
+    sample_user_role = "Data Scientist"
+    sample_query = "What is machine learning and how does it work?"
+    
+    cursor = postgres_conn.cursor()
+    try:
+        # Check if user exists
+        cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (sample_user_id,))
+        if not cursor.fetchone():
+            print(f"🔧 Creating test user: {sample_user_id}")
+            
+            # Create user in users table
+            cursor.execute("""
+                INSERT INTO users (user_id, email, role, created_at, updated_at) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (sample_user_id, "test@example.com", sample_user_role))
+            
+            # The trigger should auto-create progress, but let's verify it exists
+            cursor.execute("SELECT progress_id FROM progress WHERE user_id = %s", (sample_user_id,))
+            if not cursor.fetchone():
+                print(f"🔧 Creating progress record for user")
+                cursor.execute("""
+                    INSERT INTO progress (user_id, completed_modules, quiz_scores, interaction_log)
+                    VALUES (%s, '[]'::jsonb, '{}'::jsonb, '{"last_prompts": [], "recent_topics": [], "preferences": {}}'::jsonb)
+                """, (sample_user_id,))
+            
+            postgres_conn.commit()
+            print(f"✅ Test user created successfully")
+        else:
+            print(f"✅ Test user already exists")
+            # Verify progress record exists
+            cursor.execute("SELECT progress_id FROM progress WHERE user_id = %s", (sample_user_id,))
+            if not cursor.fetchone():
+                print(f"🔧 Creating missing progress record")
+                cursor.execute("""
+                    INSERT INTO progress (user_id, completed_modules, quiz_scores, interaction_log)
+                    VALUES (%s, '[]'::jsonb, '{}'::jsonb, '{"last_prompts": [], "recent_topics": [], "preferences": {}}'::jsonb)
+                """, (sample_user_id,))
+                postgres_conn.commit()
+            
+    except Exception as e:
+        print(f"❌ Error creating test user: {e}")
+        postgres_conn.rollback()
+        cursor.close()
+        postgres_conn.close()
+        return
+    finally:
+        cursor.close()
+
+    # Now continue with Weaviate connection
     try:
         weaviate_client = weaviate.connect_to_local()
         print("✅ Weaviate connected successfully")
@@ -363,11 +410,6 @@ def main():
             from summary_agent import SummaryAgent
         
         summary = SummaryAgent(postgres_conn, llm_client)
-
-        # Sample data
-        sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
-        sample_user_role = "Data Scientist"
-        sample_query = "What is machine learning and how does it work?"
 
         # Initialize TrainerAgent
         agent = TrainerAgent(postgres_conn, weaviate_client, summary, llm_client)
