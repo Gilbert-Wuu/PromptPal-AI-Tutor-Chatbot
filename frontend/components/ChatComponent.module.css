@@ -1,0 +1,122 @@
+.chatContainer {
+    max-width: 800px;
+    height: 90vh;
+    margin: 2rem auto;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    background: #fff;
+    overflow: hidden;
+}
+
+.messageList {
+    flex-grow: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.message {
+    padding: 12px 20px;
+    border-radius: 20px;
+    max-width: 75%;
+    line-height: 1.6;
+}
+
+/* Styles for message bubbles */
+.user {
+    background-color: #0070f3;
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 5px;
+}
+
+.portal {
+    background-color: #f1f1f1;
+    color: #333;
+    align-self: flex-start;
+    border-bottom-left-radius: 5px;
+}
+
+/* Make links in markdown blue and clickable */
+.portal a {
+    color: #0070f3;
+    text-decoration: underline;
+}
+.portal a:hover {
+    color: #005bb5;
+}
+
+
+/* Suggestions Area */
+.suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0 1.5rem 1rem;
+    border-top: 1px solid #eee;
+}
+
+.suggestionButton {
+    padding: 8px 15px;
+    border: 1px solid #0070f3;
+    background: #eaf5ff;
+    color: #0070f3;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.suggestionButton:hover {
+    background: #d0e8ff;
+}
+
+/* Input Form */
+.inputForm {
+    display: flex;
+    padding: 1rem;
+    border-top: 1px solid #eee;
+    background-color: #f9f9f9;
+}
+
+.input {
+    flex-grow: 1;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    padding: 12px 20px;
+    font-size: 1rem;
+    margin-right: 1rem;
+}
+
+.sendButton {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 20px;
+    background-color: #0070f3;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.sendButton:disabled {
+    background-color: #ccc;
+}
+
+/* Loading spinner for the portal message */
+.loader {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
