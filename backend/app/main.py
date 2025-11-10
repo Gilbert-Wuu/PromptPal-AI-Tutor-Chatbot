@@ -51,7 +51,7 @@ llm_client = OpenAI(api_key=OPENAI_API_KEY)
 summary = summary_agent.SummaryAgent(postgres_conn, llm_client)
 trainer = trainer_agent.TrainerAgent(weaviate_client, summary, None, llm_client) if weaviate_client else None
 navigator = navigator_agent.NavigatorAgent(llm_client, summary)
-assessment = assessment_agent.AssessmentAgent()
+assessment = assessment_agent.AssessmentAgent(llm_client, postgres_conn)
 
 app = FastAPI()
 

@@ -1,0 +1,23 @@
+# # PostgreSQL Configuration
+# POSTGRES_USER=ai_tutor_admin
+# POSTGRES_PASSWORD=localdev123
+# POSTGRES_DB=ai_tutor_db
+# POSTGRES_HOST=localhost
+# POSTGRES_PORT=5432
+
+# # OpenAI API Key (for Weaviate vectorization)
+# OPENAI_API_KEY=your_openai_api_key_here
+
+# PostgreSQL - Supabase (Remote)
+DATABASE_URL=postgresql://postgres:Federated1010!!@db.tjajfwixhlzrfrjemiqk.supabase.co:5432/postgres
+POSTGRES_HOST=db.tjajfwixhlzrfrjemiqk.supabase.co
+POSTGRES_PORT=5432
+POSTGRES_DB=postgres
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=Federated1010!!
+
+# Weaviate - Local
+WEAVIATE_URL=http://localhost:8080
+
+# OpenAI
+OPENAI_API_KEY=your_openai_key_here
