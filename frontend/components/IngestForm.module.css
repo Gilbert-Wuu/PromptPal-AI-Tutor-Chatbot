@@ -1,27 +1,30 @@
 .container {
-    max-width: 600px;
+    max-width: 900px;
     margin: 40px auto;
     padding: 2rem;
-    border-radius: 8px;
+    border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     background: #fff;
     font-family: sans-serif;
 }
 
+/* Tabs */
 .tabs {
     display: flex;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 2rem;
 }
 
 .tabButton {
-    padding: 10px 20px;
+    padding: 12px 24px;
     border: none;
     background: none;
     cursor: pointer;
     font-size: 1rem;
-    color: #555;
-    border-bottom: 2px solid transparent;
+    font-weight: 600;
+    color: #666;
+    border-bottom: 3px solid transparent;
     transition: all 0.2s ease-in-out;
 }
 
@@ -30,58 +33,252 @@
     border-bottom-color: #0070f3;
 }
 
-.formContainer form {
+.tabButton:hover {
+    color: #0070f3;
+    background: rgba(0, 112, 243, 0.05);
+}
+
+/* Upload Section */
+.uploadSection {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.uploadBox {
+    padding: 1.5rem;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+.uploadBox h3 {
+    margin: 0 0 1rem 0;
+    color: #333;
+}
+
+.uploadBox form {
     display: flex;
     flex-direction: column;
     gap: 1rem;
 }
 
-.fileInput, .textInput {
+.uploadBox p {
+    margin: 0 0 0.5rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.fileInput {
     padding: 10px;
     border: 1px solid #ccc;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 1rem;
+    background: white;
+}
+
+.fileInfo {
+    font-size: 0.9rem;
+    color: #0070f3;
+    font-weight: 500;
+}
+
+.textInput {
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: monospace;
+    resize: vertical;
+}
+
+.divider {
+    text-align: center;
+    color: #999;
+    font-weight: 600;
+    position: relative;
+    margin: 1rem 0;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 45%;
+    height: 1px;
+    background: #ddd;
+}
+
+.divider::before {
+    left: 0;
+}
+
+.divider::after {
+    right: 0;
 }
 
 .submitButton {
-    padding: 12px 20px;
+    padding: 12px 24px;
     border: none;
-    border-radius: 4px;
-    background-color: #0070f3;
-    color: white;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #b5e2ff 0%, #6bb6ff 100%);
+    color: #003366;
     font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(107, 182, 255, 0.3);
 }
 
 .submitButton:hover:not(:disabled) {
-    background-color: #005bb5;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(107, 182, 255, 0.4);
 }
 
 .submitButton:disabled {
-    background-color: #ccc;
+    background: #ccc;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
+/* Documents Section */
+.documentsSection {
+    padding: 1rem;
+}
+
+.documentsHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.documentsHeader h3 {
+    margin: 0;
+    color: #333;
+}
+
+.refreshButton {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #666;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.refreshButton:hover {
+    background: #f5f5f5;
+    border-color: #0070f3;
+    color: #0070f3;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #999;
+    font-size: 1.1rem;
+}
+
+.documentsList {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.documentCard {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: white;
+    transition: all 0.2s;
+}
+
+.documentCard:hover {
+    border-color: #b5e2ff;
+    box-shadow: 0 2px 8px rgba(181, 226, 255, 0.3);
+}
+
+.documentInfo {
+    flex: 1;
+}
+
+.documentName {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.documentMeta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.documentMeta span {
+    display: inline-block;
+}
+
+.deleteButton {
+    padding: 8px 16px;
+    border: 1px solid #ff4444;
+    border-radius: 6px;
+    background: white;
+    color: #ff4444;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.deleteButton:hover {
+    background: #ff4444;
+    color: white;
+}
+
+/* Messages */
 .message {
-    margin-top: 1rem;
-    padding: 10px;
-    border-radius: 4px;
-    background-color: #eaf5ff;
-    border: 1px solid #b3d7ff;
+    margin-top: 1.5rem;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
 }
 
-.loader {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #3498db;
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
-    animation: spin 1s linear infinite;
-    margin: 20px auto;
+.message.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+.message.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        margin: 20px;
+        padding: 1.5rem;
+    }
+
+    .documentCard {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .deleteButton {
+        width: 100%;
+    }
 }

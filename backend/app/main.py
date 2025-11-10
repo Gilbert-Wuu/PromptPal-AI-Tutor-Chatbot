@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 
-from backend.app.agents import summary_agent, trainer_agent, navigator_agent, assessment_agent
+from backend.app.agents import summary_agent, trainer_agent, navigator_agent, assessment_agent, document_agent
 import weaviate
 import psycopg2
 import os
@@ -28,11 +28,12 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT")
 try:
     weaviate_client = weaviate.connect_to_local(
         host="localhost",
-        port=8080
+        port=8080,
+        headers={"X-OpenAI-Api-Key": OPENAI_API_KEY} if OPENAI_API_KEY else None
     )
-    print("✓ Connected to Weaviate")
+    print("Connected to Weaviate")
 except Exception as e:
-    print(f"⚠ Warning: Could not connect to Weaviate: {e}")
+    print(f"Warning: Could not connect to Weaviate: {e}")
     print("  Weaviate features will be disabled")
     weaviate_client = None
 
@@ -43,7 +44,7 @@ postgres_conn = psycopg2.connect(
     host=POSTGRES_HOST,
     port=POSTGRES_PORT
 )
-print("✓ Connected to PostgreSQL")
+print("Connected to PostgreSQL")
 
 llm_client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -52,6 +53,7 @@ summary = summary_agent.SummaryAgent(postgres_conn, llm_client)
 trainer = trainer_agent.TrainerAgent(weaviate_client, summary, None, llm_client) if weaviate_client else None
 navigator = navigator_agent.NavigatorAgent(llm_client, summary)
 assessment = assessment_agent.AssessmentAgent(llm_client, postgres_conn)
+doc_agent = document_agent.DocumentAgent(weaviate_client, postgres_conn, llm_client)
 
 app = FastAPI()
 
@@ -270,5 +272,97 @@ async def get_topics():
             {"id": "ai_concepts", "name": "AI Concepts"},
             {"id": "use_cases", "name": "Practical Use Cases"}
         ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================
+# DOCUMENT MANAGEMENT ENDPOINTS
+# ============================================
+
+@app.post("/api/documents/upload")
+async def upload_document(data: dict):
+    """Upload and process a document"""
+    try:
+        user_id = data.get("user_id")
+        filename = data.get("filename")
+        file_content = data.get("content")
+        file_type = data.get("file_type", "text/plain")
+        file_size = data.get("file_size", len(file_content))
+        
+        print(f"Upload request received: filename={filename}, user_id={user_id}, content_length={len(file_content) if file_content else 0}")
+        
+        if not all([user_id, filename, file_content]):
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        result = doc_agent.upload_document(
+            user_id=user_id,
+            filename=filename,
+            file_content=file_content,
+            file_type=file_type,
+            file_size=file_size
+        )
+        
+        if result["success"]:
+            return result
+        else:
+            error_msg = result.get("error", result.get("message", "Unknown error"))
+            print(f"Document upload failed: {error_msg}")
+            raise HTTPException(status_code=500, detail=error_msg)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Upload endpoint exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/documents/{user_id}")
+async def get_user_documents(user_id: str):
+    """Get all documents for a user"""
+    try:
+        documents = doc_agent.get_user_documents(user_id)
+        return {"documents": documents}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(document_id: str, user_id: str = None):
+    """Delete a document"""
+    try:
+        print(f"Delete request: document_id={document_id}, user_id={user_id}")
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id query parameter is required")
+        
+        result = doc_agent.delete_document(document_id, user_id)
+        if result["success"]:
+            print(f"Document {document_id} deleted successfully")
+            return result
+        else:
+            print(f"❌ Delete failed: {result.get('message')}")
+            raise HTTPException(status_code=404, detail=result.get("message"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Delete error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/documents/query")
+async def query_documents(data: dict):
+    """Query user's documents using RAG"""
+    try:
+        user_id = data.get("user_id")
+        query = data.get("query")
+        limit = data.get("limit", 5)
+        
+        if not all([user_id, query]):
+            raise HTTPException(status_code=400, detail="Missing user_id or query")
+        
+        result = doc_agent.query_documents(user_id, query, limit)
+        return result
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
