@@ -180,7 +180,7 @@ def main():
     llm_client = OpenAI(api_key=OPENAI_API_KEY)
     sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
 
-    agent = AssessmentAgent(llm_client)
+    agent = AssessmentAgent(llm_client, postgres_conn)
 
     print("\n=== Testing Quiz Generation ===")
 
