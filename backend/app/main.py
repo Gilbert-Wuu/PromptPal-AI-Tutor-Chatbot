@@ -90,9 +90,10 @@ async def train_agent(data: dict):
 @app.post("/api/assessment")
 async def generate_assessment(data: dict):
     try:
-        request = assessment_agent.AssessmentRequest(**data)
-        response = assessment.generate_question(request)
-        return response.dict()
+        user_id = data.get("user_id")
+        topic = data.get("topic")
+        response = assessment.create_quiz(topic, assessment.getModules(user_id))
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

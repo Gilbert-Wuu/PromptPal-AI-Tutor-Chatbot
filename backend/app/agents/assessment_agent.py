@@ -130,7 +130,7 @@ class AssessmentAgent:
             print(f"❌ Assessment Agent failed to generate or parse quiz JSON: {e}")
             return None
 
-    def _getModules(self, user_id: str) -> str:
+    def getModules(self, user_id: str) -> str:
         """
         Retrieves the list of modules completed by the user from PostgreSQL.
         """
