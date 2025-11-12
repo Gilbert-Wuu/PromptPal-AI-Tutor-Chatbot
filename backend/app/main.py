@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
+from pydantic import BaseModel
+from typing import Optional
 
 from backend.app.agents import summary_agent, trainer_agent, navigator_agent, assessment_agent, document_agent
 import weaviate
@@ -9,8 +11,7 @@ import os
 import dotenv
 
 # Load environment variables
-dotenv.load_dotenv()
-
+dotenv.load_dotenv(dotenv_path="backend/.env")
 
 # Set up environment variables
 WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
@@ -50,10 +51,10 @@ llm_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize agents (handle case where Weaviate might not be available)
 summary = summary_agent.SummaryAgent(postgres_conn, llm_client)
-trainer = trainer_agent.TrainerAgent(weaviate_client, summary, None, llm_client) if weaviate_client else None
-navigator = navigator_agent.NavigatorAgent(llm_client, summary)
+trainer = trainer_agent.TrainerAgent(postgres_conn, weaviate_client, summary, llm_client) if weaviate_client else None
+navigator = navigator_agent.NavigatorAgent(llm_client, summary, weaviate_client) if weaviate_client else None
 assessment = assessment_agent.AssessmentAgent(llm_client, postgres_conn)
-doc_agent = document_agent.DocumentAgent(weaviate_client, postgres_conn, llm_client)
+doc_agent = document_agent.DocumentAgent(weaviate_client, postgres_conn, llm_client) if weaviate_client else None
 
 app = FastAPI()
 
@@ -109,16 +110,33 @@ async def navigate_learning(data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================
+# REQUEST/RESPONSE MODELS
+# ============================================
+
+class ChatRequest(BaseModel):
+    content: Optional[str] = None
+    user_id: str
+    user_role: str
+    is_initial: bool = False
+
+class LoginRequest(BaseModel):
+    email: str
+
+class SignupRequest(BaseModel):
+    email: str
+    role: str
+
+# ============================================
 # AUTH ENDPOINTS
 # ============================================
 
 @app.post("/auth/signup")
-async def signup(data: dict):
+async def signup(data: SignupRequest):
     """Create a new user account"""
     try:
-        email = data.get("email")
-        role = data.get("role")
-        
+        email = data.email
+        role = data.role
+
         if not email or not role:
             raise HTTPException(status_code=400, detail="Email and role are required")
         
@@ -157,11 +175,11 @@ async def signup(data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/auth/login")
-async def login(data: dict):
+async def login(data: LoginRequest):
     """Login existing user"""
     try:
-        email = data.get("email")
-        
+        email = data.email
+
         if not email:
             raise HTTPException(status_code=400, detail="Email is required")
         
@@ -240,26 +258,170 @@ async def get_user(email: str):
 # ============================================
 
 @app.post("/chat/")
-async def chat(data: dict):
-    """Handle chat requests from frontend"""
+async def chat(data: ChatRequest):
+    """Handle chat requests - integrate Trainer Agent and Navigator Agent"""
     try:
-        content = data.get("content")
-        user_id = data.get("user_id")  # Optional, for logged-in users
+        content = data.content  # User's query or selected option
+        user_id = data.user_id
+        user_role = data.user_role
+        is_initial = data.is_initial  # Frontend flag for initial request
+
+        if not trainer:
+            raise HTTPException(status_code=503, detail="Trainer agent not available")
         
-        if not content:
-            raise HTTPException(status_code=400, detail="Content is required")
+        print(f"Chat request - User: {user_id}, Initial: {is_initial}, Query: {content[:50] if content else 'None'}...")
         
-        # For now, return a simple response with suggestions
-        # You can integrate your trainer agent here
-        return {
-            "answer": f"I received your message: {content}. This is a placeholder response.",
-            "suggestions": [
-                "Tell me about prompt engineering",
-                "How do I use AI for data analysis?",
-                "Explain few-shot learning"
+        # Case 1: Initial request (no content), return learning options only
+        if is_initial or not content:
+            print("Initial request - Getting learning options from Navigator...")
+            
+            try:
+                # Get user's completed modules
+                cursor = postgres_conn.cursor()
+                cursor.execute(
+                    "SELECT completed_modules FROM progress WHERE user_id = %s",
+                    (user_id,)
+                )
+                result = cursor.fetchone()
+                completed_modules = result[0] if result and result[0] else []
+                cursor.close()
+                
+                # Get learning options from Navigator (returns list of strings)
+                options = navigator.get_next_learning_options(
+                    user_id=user_id,
+                    user_role=user_role,
+                    completed_modules=completed_modules
+                )
+                
+                # Format for frontend
+                learning_options = [
+                    {
+                        "id": f"option_{i}",
+                        "title": opt,
+                        "description": opt  # Navigator returns complete sentences
+                    }
+                    for i, opt in enumerate(options, 1)
+                ]
+                
+                print(f"Got {len(learning_options)} learning options")
+                
+                return {
+                    "answer": "Welcome! Please select a learning topic or enter your own question.",
+                    "learning_options": learning_options,
+                    "suggestions": [],
+                    "sources": []
+                }
+                
+            except Exception as e:
+                print(f"Error getting initial options: {e}")
+                import traceback
+                traceback.print_exc()
+                
+                # Fallback options
+                return {
+                    "answer": "Welcome! Please select a learning topic to get started.",
+                    "learning_options": [
+                        {
+                            "id": "option_1",
+                            "title": "Prompt Engineering Basics",
+                            "description": "Learn how to write effective AI prompts"
+                        },
+                        {
+                            "id": "option_2",
+                            "title": "Core AI Concepts",
+                            "description": "Understand fundamental AI principles"
+                        },
+                        {
+                            "id": "option_3",
+                            "title": "Practical Applications",
+                            "description": "Explore real-world AI use cases"
+                        }
+                    ],
+                    "suggestions": [],
+                    "sources": []
+                }
+        
+        # Case 2: User has selected an option or entered content
+        print("🎓 Generating lesson with Trainer Agent...")
+        
+        # Step 1: Use Trainer Agent to generate learning content
+        trainer_response = trainer.generate_learning_content(
+            user_id=user_id,
+            user_role=user_role,
+            query=content
+        )
+        
+        lesson = trainer_response.get("conversational_response", "I'm here to help you learn!")
+        sources = trainer_response.get("learning_content", [])  # List of dicts
+        
+        print(f"Lesson generated")
+        
+        # Step 2: Get next suggestions from Navigator
+        suggestions = []
+        try:
+            print("Getting next suggestions from Navigator...")
+            
+            cursor = postgres_conn.cursor()
+            cursor.execute(
+                "SELECT completed_modules FROM progress WHERE user_id = %s",
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            completed_modules = result[0] if result and result[0] else []
+            cursor.close()
+            
+            # Get next learning options (returns list of strings)
+            next_options = navigator.get_next_learning_options(
+                user_id=user_id,
+                user_role=user_role,
+                completed_modules=completed_modules
+            )
+            
+            # Format as suggestions (simple string format)
+            suggestions = [
+                {
+                    "id": f"suggestion_{i}",
+                    "text": opt
+                }
+                for i, opt in enumerate(next_options, 1)
             ]
+            
+            print(f"Got {len(suggestions)} suggestions")
+            
+        except Exception as e:
+            print(f"Error getting suggestions: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Fallback suggestions
+            suggestions = [
+                {"id": "suggestion_1", "text": "Continue learning this topic in depth"},
+                {"id": "suggestion_2", "text": "Take a quiz to test understanding"},
+                {"id": "suggestion_3", "text": "Explore related practical applications"}
+            ]
+        
+        # Format sources (from trainer_response's learning_content)
+        formatted_sources = []
+        for source in sources:
+            formatted_sources.append({
+                "title": source.get("title", ""),
+                "content": source.get("content", "")[:200] + "...",  # Limit length
+                "type": source.get("type", "article")
+            })
+        
+        return {
+            "answer": lesson,                    # Lesson content from Trainer (string)
+            "sources": formatted_sources,        # Reference sources (list of dicts)
+            "suggestions": suggestions,          # Next step suggestions from Navigator (list of dicts with id & text)
+            "learning_options": []               # Only present in initial request
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Chat error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/topics/")
