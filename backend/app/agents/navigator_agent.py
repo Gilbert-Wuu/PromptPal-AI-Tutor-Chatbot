@@ -7,10 +7,11 @@ import psycopg2
 from .summary_agent import SummaryAgent
 
 class NavigatorAgent:
-    def __init__(self, llm, summary_agent, model="gpt-4"):
+    def __init__(self, llm, summary_agent, weaviate_client=None, model="gpt-4"):
         self.llm = llm
         self.model = model
         self.summary_agent = summary_agent
+        self.weaviate_client = weaviate_client
 
     # -------------------------------------------------------------------------
     # Helper: build user context from profile memory
@@ -44,51 +45,46 @@ class NavigatorAgent:
             if not user_vector:
                 return {"use_cases": [], "concepts": []}
 
-            weaviate_client = weaviate.connect_to_local(
-                host="localhost",
-                port=8080,
-                headers={"X-OpenAI-Api-Key": os.getenv("OPENAI_API_KEY")}
+            if not self.weaviate_client:
+                logging.warning("Weaviate client not available")
+                return {"use_cases": [], "concepts": []}
+        
+            # Search UseCase
+            usecase_collection = self.weaviate_client.collections.get("UseCase")
+            usecase_query = usecase_collection.query.near_vector(
+                near_vector=user_vector,
+                limit=top_k
             )
 
-            try:
-                # Search UseCase
-                usecase_collection = weaviate_client.collections.get("UseCase")
-                usecase_query = usecase_collection.query.near_vector(
-                    near_vector=user_vector,
-                    limit=top_k
-                )
+            # Search CoreConcept
+            concept_collection = self.weaviate_client.collections.get("CoreConcept")
+            concept_query = concept_collection.query.near_vector(
+                near_vector=user_vector,
+                limit=top_k
+            )
+            
+            # process results
+            use_cases = []
+            for obj in usecase_query.objects:
+                use_cases.append({
+                    'title': obj.properties.get('title', ''),
+                    'application': obj.properties.get('application', ''),
+                    'ai_concepts': obj.properties.get('ai_concepts', ''),
+                    'role': obj.properties.get('role', '')
+                })
 
-                # Search CoreConcept
-                concept_collection = weaviate_client.collections.get("CoreConcept")
-                concept_query = concept_collection.query.near_vector(
-                    near_vector=user_vector,
-                    limit=top_k
-                )
-                
-                # process results
-                use_cases = []
-                for obj in usecase_query.objects:
-                    use_cases.append({
-                        'title': obj.properties.get('title', ''),
-                        'application': obj.properties.get('application', ''),
-                        'ai_concepts': obj.properties.get('ai_concepts', ''),
-                        'role': obj.properties.get('role', '')
-                    })
+            concepts = []
+            for obj in concept_query.objects:
+                concepts.append({
+                    'title': obj.properties.get('title', ''),
+                    'concept': obj.properties.get('content', ''),
+                    'role': obj.properties.get('role', '')
+                })
 
-                concepts = []
-                for obj in concept_query.objects:
-                    concepts.append({
-                        'title': obj.properties.get('title', ''),
-                        'concept': obj.properties.get('content', ''),
-                        'role': obj.properties.get('role', '')
-                    })
-
-                return {
-                    "use_cases": use_cases,
-                    "concepts": concepts
-                }
-            finally:
-                weaviate_client.close()
+            return {
+                "use_cases": use_cases,
+                "concepts": concepts
+            }
         except Exception as e:
             logging.error(f"Failed to retrieve related items from Weaviate: {e}")
             return {"use_cases": [], "concepts": []}
