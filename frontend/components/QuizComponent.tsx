@@ -55,10 +55,10 @@ const QuizComponent = () => {
             // In a real app, you'd call your `/assessment/start` endpoint.
             const response = await axios.post(`${API_BASE_URL}/api/assessment`, {
                 topic: selectedTopic,
-                user: "07c813e7-987a-47bf-a284-d51283754760"
+                user_id: "07c813e7-987a-47bf-a284-d51283754760"
             });
             if (response.data && response.data.questions) {
-                setQuizData(response.data.questions);
+                setQuizData(response.data);
                 setQuizState('in_progress');
             } else {
                 console.error("The key 'quiz_data' was not found in the API response:", response.data);

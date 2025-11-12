@@ -92,7 +92,7 @@ async def generate_assessment(data: dict):
     try:
         user_id = data.get("user_id")
         topic = data.get("topic")
-        response = assessment.create_quiz(topic, assessment.getModules(user_id))
+        response = await assessment.create_quiz(topic, assessment.getModules(user_id))
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -269,9 +269,9 @@ async def get_topics():
         # Return some sample topics
         # You can integrate with your Weaviate database here
         return [
-            {"id": "prompt_engineering", "name": "Prompt Engineering Basics"},
-            {"id": "ai_concepts", "name": "AI Concepts"},
-            {"id": "use_cases", "name": "Practical Use Cases"}
+            {"id": "prompt_engineering", "topic": "Prompt Engineering Basics"},
+            {"id": "ai_concepts", "topic": "AI Concepts"},
+            {"id": "use_cases", "topic": "Practical Use Cases"}
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
