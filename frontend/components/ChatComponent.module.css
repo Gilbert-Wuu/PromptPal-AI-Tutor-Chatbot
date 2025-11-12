@@ -72,12 +72,19 @@
     background: #d0e8ff;
 }
 
+/* Input Area - Container for input form and document popup */
+.inputArea {
+    position: relative;
+    background-color: #f9f9f9;
+    border-top: 1px solid #eee;
+}
+
 /* Input Form */
 .inputForm {
     display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 1rem;
-    border-top: 1px solid #eee;
-    background-color: #f9f9f9;
 }
 
 .input {
@@ -86,7 +93,26 @@
     border-radius: 20px;
     padding: 12px 20px;
     font-size: 1rem;
-    margin-right: 1rem;
+}
+
+.docSelectorButton {
+    padding: 12px 25px;
+    border: 1px solid #b5e2ff;
+    background: linear-gradient(135deg, #b5e2ff 0%, #6bb6ff 100%);
+    color: #333;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.docSelectorButton:hover {
+    background: linear-gradient(135deg, #a0d5ff 0%, #5aa5ff 100%);
+    transform: translateY(-1px);
 }
 
 .sendButton {
@@ -99,6 +125,7 @@
     cursor: pointer;
     transition: background-color 0.2s;
 }
+
 .sendButton:disabled {
     background-color: #ccc;
 }
@@ -116,4 +143,115 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Document Selector Popup */
+.docListPopup {
+    position: absolute;
+    bottom: 100%;
+    left: 1rem;
+    right: 1rem;
+    margin-bottom: 0.5rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 12px;
+    border: 2px solid #b5e2ff;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 100;
+    animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.noDocuments {
+    text-align: center;
+    padding: 1.5rem;
+    color: #666;
+}
+
+.noDocuments p {
+    margin: 0.5rem 0;
+}
+
+.noDocuments p:first-child {
+    font-weight: 500;
+    color: #333;
+}
+
+.docListHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #eee;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.clearButton {
+    padding: 5px 12px;
+    border: 1px solid #ff6b6b;
+    background: white;
+    color: #ff6b6b;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.clearButton:hover {
+    background: #ff6b6b;
+    color: white;
+}
+
+.docItem {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.docItem:last-child {
+    border-bottom: none;
+}
+
+.docItem:hover {
+    background-color: #f8fbff;
+}
+
+.docItem input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.docName {
+    flex-grow: 1;
+    font-weight: 500;
+    color: #333;
+}
+
+.docType {
+    padding: 3px 10px;
+    background-color: #e8f4ff;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    color: #0070f3;
+    text-transform: uppercase;
 }

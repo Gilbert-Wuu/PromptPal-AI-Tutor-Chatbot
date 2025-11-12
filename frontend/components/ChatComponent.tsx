@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import styles from './ChatComponent.module.css';
+import { useAuth } from '../contexts/AuthContext';
 
 // Define the structure of a chat message
 interface Message {
@@ -11,13 +12,24 @@ interface Message {
     content: string;
 }
 
+interface Document {
+    document_id: string;
+    filename: string;
+    file_type: string;
+    upload_date: string;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 const ChatComponent = () => {
+    const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [inputValue, setInputValue] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading initially
+    const [documents, setDocuments] = useState<Document[]>([]);
+    const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+    const [showDocSelector, setShowDocSelector] = useState<boolean>(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     // Function to scroll to the bottom of the chat
@@ -29,9 +41,30 @@ const ChatComponent = () => {
         scrollToBottom();
     }, [messages]);
 
+    // Fetch user documents on mount
+    useEffect(() => {
+        const fetchDocuments = async () => {
+            if (!user?.user_id) return;
+            
+            try {
+                const response = await axios.get(`${API_BASE_URL}/api/documents/${user.user_id}`);
+                setDocuments(response.data.documents || []);
+            } catch (error) {
+                console.error("Failed to fetch documents:", error);
+            }
+        };
+        fetchDocuments();
+    }, [user]);
+
     // Initial message to welcome the user and get first suggestions
     useEffect(() => {
         const fetchInitialGreeting = async () => {
+            if (!user?.user_id || !user?.role) {
+                setMessages([{ sender: 'portal', content: "Please log in to start chatting." }]);
+                setIsLoading(false);
+                return;
+            }
+
             // Start with a greeting from the portal
             const greeting = "Hello! I'm your Personal Learning Portal. Ask me a question or choose a prompt below to get started.";
             setMessages([{ sender: 'portal', content: greeting }]);
@@ -39,10 +72,13 @@ const ChatComponent = () => {
             // Fetch initial suggestions
             try {
                 const response = await axios.post(`${API_BASE_URL}/chat/`, {
-                    content: "Initial greeting", // A dummy message to trigger the navigator
+                    user_id: user.user_id,
+                    user_role: user.role,
+                    is_initial: true,
                 });
-                // We only care about the suggestions here, not the answer
-                setSuggestions(response.data.suggestions);
+                // Extract suggestions from the response
+                const suggestionTexts = response.data.suggestions?.map((s: any) => s.text || s) || [];
+                setSuggestions(suggestionTexts);
             } catch (error) {
                 console.error("Failed to fetch initial suggestions:", error);
                 setMessages(prev => [...prev, { sender: 'portal', content: "Sorry, I couldn't load suggestions right now."}]);
@@ -51,10 +87,10 @@ const ChatComponent = () => {
             }
         };
         fetchInitialGreeting();
-    }, []);
+    }, [user]);
 
     const handleSubmitQuery = async (query: string) => {
-        if (!query || isLoading) return;
+        if (!query || isLoading || !user?.user_id || !user?.role) return;
 
         setIsLoading(true);
         // Add user message to chat immediately for snappy UI
@@ -64,12 +100,18 @@ const ChatComponent = () => {
         try {
             const response = await axios.post(`${API_BASE_URL}/chat/`, {
                 content: query,
+                user_id: user.user_id,
+                user_role: user.role,
+                selected_documents: selectedDocIds.length > 0 ? selectedDocIds : undefined,
             });
             const { answer, suggestions: newSuggestions } = response.data;
 
             // Add portal's response and update suggestions
             setMessages(prev => [...prev, { sender: 'portal', content: answer }]);
-            setSuggestions(newSuggestions);
+            
+            // Extract suggestion texts
+            const suggestionTexts = newSuggestions?.map((s: any) => s.text || s) || [];
+            setSuggestions(suggestionTexts);
 
         } catch (error) {
             console.error("Error fetching chat response:", error);
@@ -77,6 +119,14 @@ const ChatComponent = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const toggleDocumentSelection = (docId: string) => {
+        setSelectedDocIds(prev => 
+            prev.includes(docId) 
+                ? prev.filter(id => id !== docId)
+                : [...prev, docId]
+        );
     };
 
     return (
@@ -99,19 +149,67 @@ const ChatComponent = () => {
                 ))}
             </div>
 
-            <form className={styles.inputForm} onSubmit={(e) => { e.preventDefault(); handleSubmitQuery(inputValue); }}>
-                <input
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="Type your question here..."
-                    className={styles.input}
-                    disabled={isLoading}
-                />
-                <button type="submit" className={styles.sendButton} disabled={isLoading}>
-                    Send
-                </button>
-            </form>
+            <div className={styles.inputArea}>
+                {/* Document Selector Dropdown */}
+                {showDocSelector && (
+                    <div className={styles.docListPopup}>
+                        {documents.length > 0 ? (
+                            <>
+                                <div className={styles.docListHeader}>
+                                    <span>Choose documents to include:</span>
+                                    {selectedDocIds.length > 0 && (
+                                        <button 
+                                            className={styles.clearButton}
+                                            onClick={() => setSelectedDocIds([])}
+                                            type="button"
+                                        >
+                                            Clear all
+                                        </button>
+                                    )}
+                                </div>
+                                {documents.map(doc => (
+                                    <label key={doc.document_id} className={styles.docItem}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedDocIds.includes(doc.document_id)}
+                                            onChange={() => toggleDocumentSelection(doc.document_id)}
+                                        />
+                                        <span className={styles.docName}>{doc.filename}</span>
+                                        <span className={styles.docType}>{doc.file_type}</span>
+                                    </label>
+                                ))}
+                            </>
+                        ) : (
+                            <div className={styles.noDocuments}>
+                                <p>No documents uploaded yet.</p>
+                                <p>Upload documents in the "Add Content" section to use them in chat.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+                
+                <form className={styles.inputForm} onSubmit={(e) => { e.preventDefault(); handleSubmitQuery(inputValue); }}>
+                    <input
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Type your question here..."
+                        className={styles.input}
+                        disabled={isLoading}
+                    />
+                    <button 
+                        type="button"
+                        className={styles.docSelectorButton}
+                        onClick={() => setShowDocSelector(!showDocSelector)}
+                        title={selectedDocIds.length > 0 ? `${selectedDocIds.length} document(s) selected` : 'Select documents'}
+                    >
+                        📎 {selectedDocIds.length > 0 && `(${selectedDocIds.length})`}
+                    </button>
+                    <button type="submit" className={styles.sendButton} disabled={isLoading}>
+                        Send
+                    </button>
+                </form>
+            </div>
         </div>
     );
 };

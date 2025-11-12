@@ -26,21 +26,28 @@ const IngestForm = () => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [message, setMessage] = useState<string>('');
 
-    // Load user's documents on mount
+    // Load user's documents on mount and when switching tabs
     useEffect(() => {
-        if (user && activeTab === 'manage') {
+        if (user) {
             fetchDocuments();
         }
     }, [user, activeTab]);
 
-    const fetchDocuments = async () => {
+    const fetchDocuments = async (showSuccessMessage = false) => {
         if (!user) return;
         
         try {
             const response = await axios.get(`${API_BASE_URL}/api/documents/${user.user_id}`);
             setDocuments(response.data.documents);
+            
+            if (showSuccessMessage) {
+                setMessage(`Refreshed successfully! Found ${response.data.documents.length} document(s).`);
+            }
         } catch (error) {
             console.error('Error fetching documents:', error);
+            if (showSuccessMessage) {
+                setMessage('Error refreshing documents. Please try again.');
+            }
         }
     };
 
@@ -71,6 +78,21 @@ const IngestForm = () => {
         if (!selectedFile) {
             setMessage('Please select a file first.');
             return;
+        }
+
+        // Check for duplicate filename
+        const existingDoc = documents.find(doc => doc.filename === selectedFile.name);
+        if (existingDoc) {
+            const confirmUpload = window.confirm(
+                `Warning: A document named "${selectedFile.name}" already exists in your library.\n\n` +
+                `Existing document: ${existingDoc.chunk_count} chunks, uploaded on ${new Date(existingDoc.upload_date).toLocaleDateString()}\n\n` +
+                `Do you want to continue and upload this as a new document?`
+            );
+            
+            if (!confirmUpload) {
+                setMessage('Upload cancelled - document with same name already exists.');
+                return;
+            }
         }
 
         setIsLoading(true);
@@ -121,12 +143,27 @@ const IngestForm = () => {
             return;
         }
 
+        // Generate filename
+        const filename = `pasted-text-${Date.now()}.txt`;
+        
+        // Check for duplicate filename (unlikely but possible)
+        const existingDoc = documents.find(doc => doc.filename === filename);
+        if (existingDoc) {
+            const confirmUpload = window.confirm(
+                `Warning: A document named "${filename}" already exists.\n\n` +
+                `Do you want to continue and upload this text?`
+            );
+            
+            if (!confirmUpload) {
+                setMessage('Upload cancelled - duplicate filename detected.');
+                return;
+            }
+        }
+
         setIsLoading(true);
         setMessage('');
 
         try {
-            const filename = `pasted-text-${Date.now()}.txt`;
-            
             const response = await axios.post(`${API_BASE_URL}/api/documents/upload`, {
                 user_id: user.user_id,
                 filename: filename,
@@ -260,7 +297,7 @@ const IngestForm = () => {
                     <div className={styles.documentsSection}>
                         <div className={styles.documentsHeader}>
                             <h3>Your Documents</h3>
-                            <button onClick={fetchDocuments} className={styles.refreshButton}>
+                            <button onClick={() => fetchDocuments(true)} className={styles.refreshButton}>
                                 Refresh
                             </button>
                         </div>
