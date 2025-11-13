@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from pydantic import BaseModel
 from typing import Optional
+from google import genai
+from google.genai import types
 
 from backend.app.agents import summary_agent, trainer_agent, navigator_agent, assessment_agent, document_agent
 import weaviate
@@ -24,6 +26,12 @@ POSTGRES_DB = os.getenv("POSTGRES_DB")
 POSTGRES_USER = os.getenv("POSTGRES_USER")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+
+google_api_key = os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=google_api_key)
+grounding_tool = types.Tool(google_search=types.GoogleSearch())
+model = "gemini-2.5-pro"
+config = types.GenerateContentConfig(tools=[grounding_tool])
 
 # Initialize dependencies
 # Use Weaviate v4 API - connect to local instance
@@ -52,7 +60,7 @@ llm_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize agents (handle case where Weaviate might not be available)
 summary = summary_agent.SummaryAgent(postgres_conn, llm_client)
-trainer = trainer_agent.TrainerAgent(postgres_conn, weaviate_client, summary, llm_client) if weaviate_client else None
+trainer = trainer_agent.TrainerAgent(postgres_client=postgres_conn, weaviate_client=weaviate_client, summary_agent=summary, llm_client=client, llm_model=model, config=config, grounding_tool=grounding_tool) if weaviate_client else None
 navigator = navigator_agent.NavigatorAgent(llm_client, summary, weaviate_client) if weaviate_client else None
 assessment = assessment_agent.AssessmentAgent(llm_client, postgres_conn)
 doc_agent = document_agent.DocumentAgent(weaviate_client, postgres_conn, llm_client) if weaviate_client else None
@@ -300,7 +308,6 @@ async def chat(data: ChatRequest):
                     {
                         "id": f"option_{i}",
                         "title": opt,
-                        "description": opt  # Navigator returns complete sentences
                     }
                     for i, opt in enumerate(options, 1)
                 ]
@@ -325,18 +332,15 @@ async def chat(data: ChatRequest):
                     "learning_options": [
                         {
                             "id": "option_1",
-                            "title": "Prompt Engineering Basics",
-                            "description": "Learn how to write effective AI prompts"
+                            "title": "Prompt Engineering Basics"
                         },
                         {
                             "id": "option_2",
-                            "title": "Core AI Concepts",
-                            "description": "Understand fundamental AI principles"
+                            "title": "Core AI Concepts"
                         },
                         {
                             "id": "option_3",
-                            "title": "Practical Applications",
-                            "description": "Explore real-world AI use cases"
+                            "title": "Practical Applications"
                         }
                     ],
                     "suggestions": [],
@@ -357,8 +361,7 @@ async def chat(data: ChatRequest):
             selected_document_ids=selected_documents
         )
         
-        lesson = trainer_response.get("conversational_response", "I'm here to help you learn!")
-        sources = trainer_response.get("learning_content", [])  # List of dicts
+        lesson = trainer_response
         
         print(f"Lesson generated")
         
@@ -406,18 +409,9 @@ async def chat(data: ChatRequest):
                 {"id": "suggestion_3", "text": "Explore related practical applications"}
             ]
         
-        # Format sources (from trainer_response's learning_content)
-        formatted_sources = []
-        for source in sources:
-            formatted_sources.append({
-                "title": source.get("title", ""),
-                "content": source.get("content", "")[:200] + "...",  # Limit length
-                "type": source.get("type", "article")
-            })
         
         return {
             "answer": lesson,                    # Lesson content from Trainer (string)
-            "sources": formatted_sources,        # Reference sources (list of dicts)
             "suggestions": suggestions,          # Next step suggestions from Navigator (list of dicts with id & text)
             "learning_options": []               # Only present in initial request
         }
