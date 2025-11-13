@@ -27,10 +27,54 @@ const ChatComponent = () => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [inputValue, setInputValue] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading initially
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
     const [showDocSelector, setShowDocSelector] = useState<boolean>(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const hasInitialized = useRef<boolean>(false);
+
+    // Load chat history from localStorage on mount
+    useEffect(() => {
+        if (!user?.user_id) return;
+
+        const chatKey = `chat_session_${user.user_id}`;
+        const savedSession = localStorage.getItem(chatKey);
+        
+        if (savedSession) {
+            try {
+                const { messages: savedMessages, suggestions: savedSuggestions, selectedDocIds: savedDocIds } = JSON.parse(savedSession);
+                if (savedMessages && savedMessages.length > 0) {
+                    setMessages(savedMessages);
+                    setSuggestions(savedSuggestions || []);
+                    setSelectedDocIds(savedDocIds || []);
+                    hasInitialized.current = true; // Skip initial fetch if we have cached data
+                    setIsLoading(false);
+                }
+            } catch (error) {
+                console.error("Failed to load chat session:", error);
+            }
+        }
+    }, [user?.user_id]);
+
+    // Save chat history to localStorage whenever messages, suggestions, or selectedDocIds change
+    useEffect(() => {
+        if (!user?.user_id || messages.length === 0) return;
+
+        const chatKey = `chat_session_${user.user_id}`;
+        const sessionData = {
+            messages,
+            suggestions,
+            selectedDocIds,
+            timestamp: new Date().toISOString()
+        };
+        
+        try {
+            localStorage.setItem(chatKey, JSON.stringify(sessionData));
+        } catch (error) {
+            console.error("Failed to save chat session:", error);
+        }
+    }, [messages, suggestions, selectedDocIds, user?.user_id]);
 
     // Function to scroll to the bottom of the chat
     const scrollToBottom = () => {
@@ -65,25 +109,45 @@ const ChatComponent = () => {
                 return;
             }
 
+            // Prevent duplicate calls
+            if (hasInitialized.current) {
+                return;
+            }
+            hasInitialized.current = true;
+
             // Start with a greeting from the portal
             const greeting = "Hello! I'm your Personal Learning Portal. Ask me a question or choose a prompt below to get started.";
             setMessages([{ sender: 'portal', content: greeting }]);
 
             // Fetch initial suggestions
+            setIsLoadingSuggestions(true);
             try {
                 const response = await axios.post(`${API_BASE_URL}/chat/`, {
                     user_id: user.user_id,
                     user_role: user.role,
                     is_initial: true,
                 });
+                
                 // Extract suggestions from the response
-                const suggestionTexts = response.data.suggestions?.map((s: any) => s.text || s) || [];
+                // For initial request, backend returns learning_options instead of suggestions
+                const learningOptions = response.data.learning_options || [];
+                const suggestions = response.data.suggestions || [];
+                
+                // Use learning_options if available (initial), otherwise use suggestions
+                let suggestionTexts: string[] = [];
+                if (learningOptions.length > 0) {
+                    suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
+                } else if (suggestions.length > 0) {
+                    suggestionTexts = suggestions.map((s: any) => s.text || s);
+                }
+                
                 setSuggestions(suggestionTexts);
             } catch (error) {
                 console.error("Failed to fetch initial suggestions:", error);
                 setMessages(prev => [...prev, { sender: 'portal', content: "Sorry, I couldn't load suggestions right now."}]);
             } finally {
                 setIsLoading(false);
+                setIsLoadingSuggestions(false);
             }
         };
         fetchInitialGreeting();
@@ -93,6 +157,7 @@ const ChatComponent = () => {
         if (!query || isLoading || !user?.user_id || !user?.role) return;
 
         setIsLoading(true);
+        setIsLoadingSuggestions(true);
         // Add user message to chat immediately for snappy UI
         setMessages(prev => [...prev, { sender: 'user', content: query }]);
         setInputValue(''); // Clear input field
@@ -104,13 +169,19 @@ const ChatComponent = () => {
                 user_role: user.role,
                 selected_documents: selectedDocIds.length > 0 ? selectedDocIds : undefined,
             });
-            const { answer, suggestions: newSuggestions } = response.data;
+            const { answer, suggestions: newSuggestions, learning_options: learningOptions } = response.data;
 
             // Add portal's response and update suggestions
             setMessages(prev => [...prev, { sender: 'portal', content: answer }]);
             
-            // Extract suggestion texts
-            const suggestionTexts = newSuggestions?.map((s: any) => s.text || s) || [];
+            // Extract suggestion texts (handle both formats)
+            let suggestionTexts: string[] = [];
+            if (learningOptions && learningOptions.length > 0) {
+                suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
+            } else if (newSuggestions && newSuggestions.length > 0) {
+                suggestionTexts = newSuggestions.map((s: any) => s.text || s);
+            }
+            
             setSuggestions(suggestionTexts);
 
         } catch (error) {
@@ -118,6 +189,7 @@ const ChatComponent = () => {
             setMessages(prev => [...prev, { sender: 'portal', content: "Sorry, something went wrong. Please try again."}]);
         } finally {
             setIsLoading(false);
+            setIsLoadingSuggestions(false);
         }
     };
 
@@ -129,8 +201,57 @@ const ChatComponent = () => {
         );
     };
 
+    const clearChatHistory = () => {
+        if (window.confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
+            if (user?.user_id) {
+                localStorage.removeItem(`chat_session_${user.user_id}`);
+            }
+            setMessages([]);
+            setSuggestions([]);
+            setSelectedDocIds([]);
+            hasInitialized.current = false;
+            
+            // Re-initialize chat
+            const greeting = "Hello! I'm your Personal Learning Portal. Ask me a question or choose a prompt below to get started.";
+            setMessages([{ sender: 'portal', content: greeting }]);
+            
+            // Fetch fresh suggestions
+            if (user?.user_id && user?.role) {
+                setIsLoadingSuggestions(true);
+                axios.post(`${API_BASE_URL}/chat/`, {
+                    user_id: user.user_id,
+                    user_role: user.role,
+                    is_initial: true,
+                }).then(response => {
+                    const learningOptions = response.data.learning_options || [];
+                    const suggestions = response.data.suggestions || [];
+                    let suggestionTexts: string[] = [];
+                    if (learningOptions.length > 0) {
+                        suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
+                    } else if (suggestions.length > 0) {
+                        suggestionTexts = suggestions.map((s: any) => s.text || s);
+                    }
+                    setSuggestions(suggestionTexts);
+                }).catch(error => {
+                    console.error("Failed to fetch suggestions:", error);
+                }).finally(() => {
+                    setIsLoadingSuggestions(false);
+                });
+            }
+        }
+    };
+
     return (
         <div className={styles.chatContainer}>
+            {/* Clear Chat Button */}
+            {messages.length > 1 && (
+                <div className={styles.clearChatContainer}>
+                    <button onClick={clearChatHistory} className={styles.clearChatButton}>
+                        Clear Chat History
+                    </button>
+                </div>
+            )}
+            
             <div className={styles.messageList}>
                 {messages.map((msg, index) => (
                     <div key={index} className={`${styles.message} ${styles[msg.sender]}`}>
@@ -142,11 +263,18 @@ const ChatComponent = () => {
             </div>
 
             <div className={styles.suggestions}>
-                {suggestions.map((s, index) => (
-                    <button key={index} onClick={() => handleSubmitQuery(s)} className={styles.suggestionButton}>
-                        {s}
-                    </button>
-                ))}
+                {isLoadingSuggestions ? (
+                    <div className={styles.suggestionsLoading}>
+                        <span className={styles.loader}></span>
+                        <span className={styles.loadingText}>Generating suggestions...</span>
+                    </div>
+                ) : (
+                    suggestions.map((s, index) => (
+                        <button key={index} onClick={() => handleSubmitQuery(s)} className={styles.suggestionButton}>
+                            {s}
+                        </button>
+                    ))
+                )}
             </div>
 
             <div className={styles.inputArea}>

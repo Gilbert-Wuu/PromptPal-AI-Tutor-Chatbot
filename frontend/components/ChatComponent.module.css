@@ -7,6 +7,30 @@
     overflow: hidden;
 }
 
+.clearChatContainer {
+    padding: 0.5rem 1.5rem;
+    background: #f9f9f9;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.clearChatButton {
+    padding: 6px 12px;
+    border: 1px solid #ff6b6b;
+    background: white;
+    color: #ff6b6b;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.clearChatButton:hover {
+    background: #ff6b6b;
+    color: white;
+}
+
 .messageList {
     flex-grow: 1;
     padding: 1.5rem;
@@ -52,13 +76,35 @@
 .suggestions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0 1.5rem 1rem;
+    gap: 0.75rem;
+    padding: 1.25rem 1.5rem 2rem;
     border-top: 1px solid #eee;
+    min-height: 80px;
+    align-items: flex-start;
+    align-content: flex-start;
+    background-color: white;
+    position: relative;
+    z-index: 1;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.suggestionsLoading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.loadingText {
+    font-style: italic;
+    color: #888;
 }
 
 .suggestionButton {
-    padding: 8px 15px;
+    padding: 10px 16px;
     border: 1px solid #0070f3;
     background: #eaf5ff;
     color: #0070f3;
@@ -66,6 +112,12 @@
     cursor: pointer;
     transition: background-color 0.2s;
     font-size: 0.9rem;
+    line-height: 1.6;
+    max-width: 100%;
+    word-wrap: break-word;
+    white-space: normal;
+    text-align: left;
+    flex-shrink: 0;
 }
 
 .suggestionButton:hover {
@@ -77,6 +129,7 @@
     position: relative;
     background-color: #f9f9f9;
     border-top: 1px solid #eee;
+    z-index: 10;
 }
 
 /* Input Form */
@@ -159,7 +212,7 @@
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
     max-height: 300px;
     overflow-y: auto;
-    z-index: 100;
+    z-index: 50;
     animation: slideUp 0.2s ease-out;
 }
 
