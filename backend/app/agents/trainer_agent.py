@@ -15,6 +15,7 @@ class TrainerAgent:
         self.summary_agent = summary_agent
         self.llm_client = llm_client
         self.llm_model = llm_model
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
 
     def _is_content_rich(self, results):
         """Check if retrieved content is sufficient"""
@@ -55,6 +56,47 @@ class TrainerAgent:
             "End with a summary or a follow-up question to keep the user engaged.\n"
         )
         return prompt
+
+    def _search_user_documents(self, query, document_ids, limit=5):
+        """Search user's uploaded documents in Weaviate"""
+        try:
+            if not hasattr(self.weaviate_client, 'collections'):
+                print("Weaviate v4 client not available")
+                return []
+            
+            user_doc_collection = self.weaviate_client.collections.get("UserDocument")
+            
+            # Query with document ID filter
+            results = user_doc_collection.query.near_text(
+                query=query,
+                limit=limit * 3,  # Get more results to filter
+                return_properties=["content", "filename", "chunk_index", "document_id"]
+            )
+            
+            # Filter by selected document IDs
+            filtered_results = []
+            for obj in results.objects:
+                props = obj.properties
+                doc_id = props.get("document_id", "")
+                
+                if doc_id in document_ids:
+                    filtered_results.append({
+                        "title": f"{props.get('filename', 'Document')} (Chunk {props.get('chunk_index', 0)})",
+                        "content": props.get("content", ""),
+                        "tags": [props.get("filename", "")],
+                        "type": "user_document"
+                    })
+                    
+                    if len(filtered_results) >= limit:
+                        break
+            
+            print(f"Found {len(filtered_results)} relevant chunks from user documents")
+            return filtered_results
+            
+        except Exception as e:
+            logging.error(f"Error searching user documents: {e}")
+            print(f"Error searching user documents: {e}")
+            return []
 
     def _search_knowledge_base(self, query, user_role, short_term, long_term):
         """Search Weaviate for relevant content - compatible with both v3 and v4 clients"""
@@ -129,15 +171,25 @@ class TrainerAgent:
         finally:
             cursor.close()
 
-    def generate_learning_content(self, user_id, user_role, query):
+    def generate_learning_content(self, user_id, user_role, query, selected_document_ids=None):
         """Generate comprehensive learning response using RAG approach"""
         try:
             # Get user summaries
             long_term = self.summary_agent.get_long_term_summary(user_id)
             short_term = self.summary_agent.get_short_term_summary(user_id)
 
-            # Search knowledge base
-            results = self._search_knowledge_base(query, user_role, short_term, long_term)
+            # Determine which source to search
+            results = []
+            
+            # If user selected documents, search their documents
+            if selected_document_ids and len(selected_document_ids) > 0:
+                print(f"Searching {len(selected_document_ids)} selected user documents")
+                results = self._search_user_documents(query, selected_document_ids, limit=5)
+            
+            # If no results from user documents, or no documents selected, search knowledge base
+            if not results:
+                print("Searching general knowledge base")
+                results = self._search_knowledge_base(query, user_role, short_term, long_term)
 
             # If no results found, create some basic learning content
             if not results:

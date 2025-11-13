@@ -11,7 +11,8 @@ import os
 import dotenv
 
 # Load environment variables
-dotenv.load_dotenv(dotenv_path="backend/.env")
+# Load from project root .env file
+dotenv.load_dotenv()
 
 # Set up environment variables
 WEAVIATE_URL = os.getenv("WEAVIATE_URL", "http://localhost:8080")
@@ -118,6 +119,7 @@ class ChatRequest(BaseModel):
     user_id: str
     user_role: str
     is_initial: bool = False
+    selected_documents: Optional[list[str]] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -342,13 +344,17 @@ async def chat(data: ChatRequest):
                 }
         
         # Case 2: User has selected an option or entered content
-        print("🎓 Generating lesson with Trainer Agent...")
+        print("Generating lesson with Trainer Agent...")
+        
+        # Check if user has selected documents
+        selected_documents = data.selected_documents
         
         # Step 1: Use Trainer Agent to generate learning content
         trainer_response = trainer.generate_learning_content(
             user_id=user_id,
             user_role=user_role,
-            query=content
+            query=content,
+            selected_document_ids=selected_documents
         )
         
         lesson = trainer_response.get("conversational_response", "I'm here to help you learn!")
@@ -503,7 +509,7 @@ async def delete_document(document_id: str, user_id: str = None):
             print(f"Document {document_id} deleted successfully")
             return result
         else:
-            print(f"❌ Delete failed: {result.get('message')}")
+            print(f"Delete failed: {result.get('message')}")
             raise HTTPException(status_code=404, detail=result.get("message"))
     except HTTPException:
         raise
