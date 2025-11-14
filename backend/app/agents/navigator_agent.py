@@ -151,14 +151,23 @@ class NavigatorAgent:
             "Identify what the user should learn next to maximize their growth, based on their history and current focus. "
             "If the short-term summary shows a topic in progress, consider suggesting ways to deepen that topic.\n\n"
             "E - Examples:\n"
-            "- If the user is learning about prompt engineering, suggest advanced prompt techniques or related use cases.\n"
-            "- If a module is completed, suggest a practical exercise or a new concept that builds on it.\n\n"
+            "Good examples of learning options:\n"
+            "1. How to craft effective prompts?\n"
+            "2. What is predictive analytics?\n"
+            "3. Build an AI customer chatbot\n\n"
+            "Bad examples (too long, avoid these):\n"
+            "1. Crafting prompts for an AI customer service chatbot to improve customer interactions.\n"
+            "2. Designing prompts to refine predictive sales analytics for better business decisions.\n\n"
             "A - Action:\n"
-            "Generate 3 actionable, specific, and relevant next-step learning prompts. Each should be clear and tailored to the user's context. "
-            "If the user is already engaged with a topic, it is valid to suggest 3 prompts that help them dive deeper.\n\n"
+            "Generate 3 SHORT, CLEAR learning options. Each option must be:\n"
+            "- Maximum 5-6 words\n"
+            "- Simple and actionable\n"
+            "- Use question format when possible (How to...? What is...?)\n"
+            "- Focus on ONE core concept per option\n"
+            "- Avoid long explanations - be concise!\n\n"
             "R - Review:\n"
-            "Return the options as a numbered list. Each option should be a single sentence, actionable, and directly related to the user's learning journey.\n"
-        )
+            "Return ONLY 3 short learning options as a numbered list. Each should be a brief, clear title that a user can immediately understand.\n"
+            )
 
     # -------------------------------------------------------------------------
     # Main function: get next learning options
