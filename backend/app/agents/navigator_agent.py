@@ -40,7 +40,7 @@ class NavigatorAgent:
     # -------------------------------------------------------------------------
     # Helper: retrieve relevant AI Concepts + Use Cases from Weaviate
     # -------------------------------------------------------------------------
-    def _retrieve_related_items(self, user_vector, top_k=3):
+    def _retrieve_related_items(self, user_vector, top_k=5):
         try:
             if not user_vector:
                 return {"use_cases": [], "concepts": []}
@@ -48,22 +48,19 @@ class NavigatorAgent:
             if not self.weaviate_client:
                 logging.warning("Weaviate client not available")
                 return {"use_cases": [], "concepts": []}
-        
-            # Search UseCase
+
             usecase_collection = self.weaviate_client.collections.get("UseCase")
             usecase_query = usecase_collection.query.near_vector(
                 near_vector=user_vector,
                 limit=top_k
             )
 
-            # Search CoreConcept
             concept_collection = self.weaviate_client.collections.get("CoreConcept")
             concept_query = concept_collection.query.near_vector(
                 near_vector=user_vector,
                 limit=top_k
             )
-            
-            # process results
+
             use_cases = []
             for obj in usecase_query.objects:
                 use_cases.append({
@@ -81,10 +78,13 @@ class NavigatorAgent:
                     'role': obj.properties.get('role', '')
                 })
 
-            return {
-                "use_cases": use_cases,
-                "concepts": concepts
-            }
+            # 🔥 Debug print
+            print("\n===== WEAVIATE USE CASES =====")
+            print(use_cases)
+            print("\n===== WEAVIATE CONCEPTS =====")
+            print(concepts)
+
+            return {"use_cases": use_cases, "concepts": concepts}
         except Exception as e:
             logging.error(f"Failed to retrieve related items from Weaviate: {e}")
             return {"use_cases": [], "concepts": []}
@@ -94,7 +94,7 @@ class NavigatorAgent:
             response = self.llm.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
-                max_tokens=350,
+                max_tokens=500,
                 temperature=0.7,
             )
             return response.choices[0].message.content
@@ -109,7 +109,8 @@ class NavigatorAgent:
                 option = line.split('.', 1)[-1].strip()
                 if option:
                     options.append(option)
-        return options[:3]
+        return options[:5]
+
 
     # -------------------------------------------------------------------------
     # Core: build clear prompt for LLM, integrating retrieved knowledge
@@ -122,52 +123,83 @@ class NavigatorAgent:
         user_vector = self._embed_text(user_context)
         retrieved = self._retrieve_related_items(user_vector)
 
-        # Step 3: prepare contextual information
-        use_cases = "\n".join(
-            f"- Title: {item['title']}, Application: {item['application']}, "
-            f"AI Concepts: {item['ai_concepts']}, Role: {item['role']}"
-            for item in retrieved["use_cases"]
-        ) if retrieved["use_cases"] else "No relevant use cases found."
+        # But now we IGNORE concepts entirely
+        use_cases = retrieved["use_cases"]
 
-        concepts = "\n".join(
-            f"- Title: {item['title']}, Concept: {item['concept']}, Role: {item['role']}"
-            for item in retrieved["concepts"]
-        ) if retrieved["concepts"] else "No related AI concepts found."
+        # Debug print to confirm Weaviate results
+        print("\n========== WEAVIATE DEBUG ==========")
+        print("USE CASES:", use_cases)
+        print("====================================\n")
 
-        return (
-            "You are an AI learning navigator for a corporate training platform. "
-            "Follow the CLEAR methodology (Context, Learning objective, Examples, Action, Review) to suggest the next 3 learning options for the user.\n\n"
-            "C - Context:\n"
-            f"{user_context}\n\n"
-            "Relevant Use Cases (from vector DB):\n"
-            f"{use_cases}\n\n"
-            "Related AI Concepts:\n"
-            f"{concepts}\n"
-            f"- User role: {user_role}\n"
-            f"- Completed modules: {', '.join(completed_modules) if completed_modules else 'None'}\n"
-            f"- Long-term learning summary: {long_term_summary}\n"
-            f"- Short-term summary (recent focus): {short_term_summary}\n\n"
-            "L - Learning Objective:\n"
-            "Identify what the user should learn next to maximize their growth, based on their history and current focus. "
-            "If the short-term summary shows a topic in progress, consider suggesting ways to deepen that topic.\n\n"
-            "E - Examples:\n"
-            "Good examples of learning options:\n"
-            "1. How to craft effective prompts?\n"
-            "2. What is predictive analytics?\n"
-            "3. Build an AI customer chatbot\n\n"
-            "Bad examples (too long, avoid these):\n"
-            "1. Crafting prompts for an AI customer service chatbot to improve customer interactions.\n"
-            "2. Designing prompts to refine predictive sales analytics for better business decisions.\n\n"
-            "A - Action:\n"
-            "Generate 3 SHORT, CLEAR learning options. Each option must be:\n"
-            "- Maximum 5-6 words\n"
-            "- Simple and actionable\n"
-            "- Use question format when possible (How to...? What is...?)\n"
-            "- Focus on ONE core concept per option\n"
-            "- Avoid long explanations - be concise!\n\n"
-            "R - Review:\n"
-            "Return ONLY 3 short learning options as a numbered list. Each should be a brief, clear title that a user can immediately understand.\n"
-            )
+        # Step 3: Format use case info ONLY
+        use_case_text = "\n".join(
+            f"- {item['title']}: {item['application']}"
+            for item in use_cases
+        ) if use_cases else "None found"
+
+        # =========================================
+        # 🔥 New Prompt (only use cases, strong AI constraints)
+        # =========================================
+        full_prompt = f"""
+You are an AI Learning Navigator. Your job is to recommend *AI-powered* tasks a non-technical user can learn.
+
+IMPORTANT RULES:
+- Every suggestion MUST end with "using AI"
+- Format MUST be EXACTLY:
+  1. <task> using AI
+  2. <task> using AI
+  3. <task> using AI
+  4. <task> using AI
+  5. <task> using AI
+- Keep <task> SHORT (2-4 words max)
+- Each task MUST be inspired directly by the relevant use cases below
+- Do NOT suggest generic business topics (e.g., project management, leadership)
+- Make each suggestion UNIQUE and cover different aspects of AI usage
+- Use verb phrases (e.g., "Summarize documents", "Analyze feedback", "Generate reports")
+
+GOOD EXAMPLES:
+1. Summarize documents using AI
+2. Analyze customer feedback using AI
+3. Generate sales reports using AI
+4. Create marketing content using AI
+5. Automate data entry using AI
+
+BAD EXAMPLES (missing "using AI"):
+1. Summarize documents
+2. Analyze customer feedback
+
+BAD EXAMPLES (too long):
+1. How to use AI to summarize long documents for quick insights using AI
+
+======= USER CONTEXT =======
+Role: {user_role}
+Completed modules: {', '.join(completed_modules) if completed_modules else "None"}
+Long-term memory: {long_term_summary}
+Short-term memory: {short_term_summary}
+
+======= RELEVANT USE CASES (from Vector DB) =======
+{use_case_text}
+
+======= ACTION =======
+Based on the user's role and the use cases above, generate EXACTLY 5 suggestions:
+
+1. <task> using AI
+2. <task> using AI
+3. <task> using AI
+4. <task> using AI
+5. <task> using AI
+
+Return ONLY the numbered list. No explanation.
+"""
+
+        # Debug print
+        print("\n===== NAVIGATOR PROMPT =====\n")
+        print(full_prompt)
+        print("\n=============================\n")
+
+        return full_prompt
+
+
 
     # -------------------------------------------------------------------------
     # Main function: get next learning options

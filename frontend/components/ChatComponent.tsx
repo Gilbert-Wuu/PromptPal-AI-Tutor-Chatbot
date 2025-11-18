@@ -201,6 +201,34 @@ const ChatComponent = () => {
         );
     };
 
+    const refreshSuggestions = async () => {
+        if (!user?.user_id || !user?.role || isLoadingSuggestions) return;
+        
+        setIsLoadingSuggestions(true);
+        try {
+            const response = await axios.post(`${API_BASE_URL}/chat/`, {
+                user_id: user.user_id,
+                user_role: user.role,
+                is_initial: true,
+            });
+            
+            const learningOptions = response.data.learning_options || [];
+            const suggestions = response.data.suggestions || [];
+            let suggestionTexts: string[] = [];
+            if (learningOptions.length > 0) {
+                suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
+            } else if (suggestions.length > 0) {
+                suggestionTexts = suggestions.map((s: any) => s.text || s);
+            }
+            
+            setSuggestions(suggestionTexts);
+        } catch (error) {
+            console.error("Failed to refresh suggestions:", error);
+        } finally {
+            setIsLoadingSuggestions(false);
+        }
+    };
+
     const clearChatHistory = () => {
         if (window.confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
             if (user?.user_id) {
@@ -263,17 +291,31 @@ const ChatComponent = () => {
             </div>
 
             <div className={styles.suggestions}>
+                <div className={styles.suggestionsHeader}>
+                    <span className={styles.suggestionsTitle}>Suggested Topics</span>
+                    {suggestions.length > 0 && !isLoadingSuggestions && (
+                        <button 
+                            onClick={refreshSuggestions} 
+                            className={styles.refreshButton}
+                            title="Get new suggestions"
+                        >
+                            Refresh
+                        </button>
+                    )}
+                </div>
                 {isLoadingSuggestions ? (
                     <div className={styles.suggestionsLoading}>
                         <span className={styles.loader}></span>
                         <span className={styles.loadingText}>Generating suggestions...</span>
                     </div>
                 ) : (
-                    suggestions.map((s, index) => (
-                        <button key={index} onClick={() => handleSubmitQuery(s)} className={styles.suggestionButton}>
-                            {s}
-                        </button>
-                    ))
+                    <div className={styles.suggestionsList}>
+                        {suggestions.map((s, index) => (
+                            <button key={index} onClick={() => handleSubmitQuery(s)} className={styles.suggestionButton}>
+                                {s}
+                            </button>
+                        ))}
+                    </div>
                 )}
             </div>
 
