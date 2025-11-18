@@ -101,7 +101,7 @@ const IngestForm = () => {
         try {
             // Read file content
             const content = await readFileContent(selectedFile);
-            
+
             // Upload to backend
             const response = await axios.post(`${API_BASE_URL}/api/documents/upload`, {
                 user_id: user.user_id,
@@ -264,31 +264,31 @@ const IngestForm = () => {
                                     className={styles.submitButton}
                                 >
                                     {isLoading ? 'Uploading...' : 'Upload File'}
-                                </button>
-                            </form>
+                        </button>
+                    </form>
                         </div>
 
                         <div className={styles.divider}>OR</div>
 
                         <div className={styles.uploadBox}>
                             <h3>Paste Text</h3>
-                            <form onSubmit={handleTextSubmit}>
+                    <form onSubmit={handleTextSubmit}>
                                 <p>Paste text directly to add to your knowledge base</p>
-                                <textarea
-                                    value={pastedText}
-                                    onChange={(e) => setPastedText(e.target.value)}
-                                    placeholder="Paste your text here..."
-                                    className={styles.textInput}
-                                    rows={8}
-                                />
+                        <textarea
+                            value={pastedText}
+                            onChange={(e) => setPastedText(e.target.value)}
+                            placeholder="Paste your text here..."
+                            className={styles.textInput}
+                            rows={8}
+                        />
                                 <button 
                                     type="submit" 
                                     disabled={isLoading || !pastedText.trim()} 
                                     className={styles.submitButton}
                                 >
                                     {isLoading ? 'Uploading...' : 'Upload Text'}
-                                </button>
-                            </form>
+                        </button>
+                    </form>
                         </div>
                     </div>
                 )}
