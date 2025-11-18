@@ -67,7 +67,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = () => {
+        // Clear user data
+        const currentUser = user;
         localStorage.removeItem('user');
+        
+        // Clear chat session for this user
+        if (currentUser?.user_id) {
+            localStorage.removeItem(`chat_session_${currentUser.user_id}`);
+        }
+        
         setUser(null);
         setIsAuthenticated(false);
     };

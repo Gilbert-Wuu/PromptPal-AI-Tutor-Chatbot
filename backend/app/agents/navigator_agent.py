@@ -7,10 +7,11 @@ import psycopg2
 from .summary_agent import SummaryAgent
 
 class NavigatorAgent:
-    def __init__(self, llm, summary_agent, model="gpt-4"):
+    def __init__(self, llm, summary_agent, weaviate_client=None, model="gpt-4"):
         self.llm = llm
         self.model = model
         self.summary_agent = summary_agent
+        self.weaviate_client = weaviate_client
 
     # -------------------------------------------------------------------------
     # Helper: build user context from profile memory
@@ -39,56 +40,51 @@ class NavigatorAgent:
     # -------------------------------------------------------------------------
     # Helper: retrieve relevant AI Concepts + Use Cases from Weaviate
     # -------------------------------------------------------------------------
-    def _retrieve_related_items(self, user_vector, top_k=3):
+    def _retrieve_related_items(self, user_vector, top_k=5):
         try:
             if not user_vector:
                 return {"use_cases": [], "concepts": []}
 
-            weaviate_client = weaviate.connect_to_local(
-                host="localhost",
-                port=8080,
-                headers={"X-OpenAI-Api-Key": os.getenv("OPENAI_API_KEY")}
+            if not self.weaviate_client:
+                logging.warning("Weaviate client not available")
+                return {"use_cases": [], "concepts": []}
+
+            usecase_collection = self.weaviate_client.collections.get("UseCase")
+            usecase_query = usecase_collection.query.near_vector(
+                near_vector=user_vector,
+                limit=top_k
             )
 
-            try:
-                # Search UseCase
-                usecase_collection = weaviate_client.collections.get("UseCase")
-                usecase_query = usecase_collection.query.near_vector(
-                    near_vector=user_vector,
-                    limit=top_k
-                )
+            concept_collection = self.weaviate_client.collections.get("CoreConcept")
+            concept_query = concept_collection.query.near_vector(
+                near_vector=user_vector,
+                limit=top_k
+            )
 
-                # Search CoreConcept
-                concept_collection = weaviate_client.collections.get("CoreConcept")
-                concept_query = concept_collection.query.near_vector(
-                    near_vector=user_vector,
-                    limit=top_k
-                )
-                
-                # process results
-                use_cases = []
-                for obj in usecase_query.objects:
-                    use_cases.append({
-                        'title': obj.properties.get('title', ''),
-                        'application': obj.properties.get('application', ''),
-                        'ai_concepts': obj.properties.get('ai_concepts', ''),
-                        'role': obj.properties.get('role', '')
-                    })
+            use_cases = []
+            for obj in usecase_query.objects:
+                use_cases.append({
+                    'title': obj.properties.get('title', ''),
+                    'application': obj.properties.get('application', ''),
+                    'ai_concepts': obj.properties.get('ai_concepts', ''),
+                    'role': obj.properties.get('role', '')
+                })
 
-                concepts = []
-                for obj in concept_query.objects:
-                    concepts.append({
-                        'title': obj.properties.get('title', ''),
-                        'concept': obj.properties.get('content', ''),
-                        'role': obj.properties.get('role', '')
-                    })
+            concepts = []
+            for obj in concept_query.objects:
+                concepts.append({
+                    'title': obj.properties.get('title', ''),
+                    'concept': obj.properties.get('content', ''),
+                    'role': obj.properties.get('role', '')
+                })
 
-                return {
-                    "use_cases": use_cases,
-                    "concepts": concepts
-                }
-            finally:
-                weaviate_client.close()
+            # 🔥 Debug print
+            print("\n===== WEAVIATE USE CASES =====")
+            print(use_cases)
+            print("\n===== WEAVIATE CONCEPTS =====")
+            print(concepts)
+
+            return {"use_cases": use_cases, "concepts": concepts}
         except Exception as e:
             logging.error(f"Failed to retrieve related items from Weaviate: {e}")
             return {"use_cases": [], "concepts": []}
@@ -98,7 +94,7 @@ class NavigatorAgent:
             response = self.llm.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "system", "content": prompt}],
-                max_tokens=350,
+                max_tokens=500,
                 temperature=0.7,
             )
             return response.choices[0].message.content
@@ -113,7 +109,8 @@ class NavigatorAgent:
                 option = line.split('.', 1)[-1].strip()
                 if option:
                     options.append(option)
-        return options[:3]
+        return options[:5]
+
 
     # -------------------------------------------------------------------------
     # Core: build clear prompt for LLM, integrating retrieved knowledge
@@ -126,43 +123,79 @@ class NavigatorAgent:
         user_vector = self._embed_text(user_context)
         retrieved = self._retrieve_related_items(user_vector)
 
-        # Step 3: prepare contextual information
-        use_cases = "\n".join(
-            f"- Title: {item['title']}, Application: {item['application']}, "
-            f"AI Concepts: {item['ai_concepts']}, Role: {item['role']}"
-            for item in retrieved["use_cases"]
-        ) if retrieved["use_cases"] else "No relevant use cases found."
+        # But now we IGNORE concepts entirely
+        use_cases = retrieved["use_cases"]
 
-        concepts = "\n".join(
-            f"- Title: {item['title']}, Concept: {item['concept']}, Role: {item['role']}"
-            for item in retrieved["concepts"]
-        ) if retrieved["concepts"] else "No related AI concepts found."
+        # Debug print to confirm Weaviate results
+        print("\n========== WEAVIATE DEBUG ==========")
+        print("USE CASES:", use_cases)
+        print("====================================\n")
 
-        return (
-            "You are an AI learning navigator for a corporate training platform. "
-            "Follow the CLEAR methodology (Context, Learning objective, Examples, Action, Review) to suggest the next 3 learning options for the user.\n\n"
-            "C - Context:\n"
-            f"{user_context}\n\n"
-            "Relevant Use Cases (from vector DB):\n"
-            f"{use_cases}\n\n"
-            "Related AI Concepts:\n"
-            f"{concepts}\n"
-            f"- User role: {user_role}\n"
-            f"- Completed modules: {', '.join(completed_modules) if completed_modules else 'None'}\n"
-            f"- Long-term learning summary: {long_term_summary}\n"
-            f"- Short-term summary (recent focus): {short_term_summary}\n\n"
-            "L - Learning Objective:\n"
-            "Identify what the user should learn next to maximize their growth, based on their history and current focus. "
-            "If the short-term summary shows a topic in progress, consider suggesting ways to deepen that topic.\n\n"
-            "E - Examples:\n"
-            "- If the user is learning about prompt engineering, suggest advanced prompt techniques or related use cases.\n"
-            "- If a module is completed, suggest a practical exercise or a new concept that builds on it.\n\n"
-            "A - Action:\n"
-            "Generate 3 actionable, specific, and relevant next-step learning prompts. Each should be clear and tailored to the user's context. "
-            "If the user is already engaged with a topic, it is valid to suggest 3 prompts that help them dive deeper.\n\n"
-            "R - Review:\n"
-            "Return the options as a numbered list. Each option should be a single sentence, actionable, and directly related to the user's learning journey.\n"
-        )
+        # Step 3: Format use case info ONLY
+        use_case_text = "\n".join(
+            f"- {item['title']}: {item['application']}"
+            for item in use_cases
+        ) if use_cases else "None found"
+
+        # =========================================
+        # 🔥 New Prompt (only use cases, strong AI constraints)
+        # =========================================
+        full_prompt = f"""
+You are an AI Learning Navigator. Your job is to recommend *AI-powered* tasks a non-technical user can learn.
+
+IMPORTANT RULES:
+- Format MUST be EXACTLY:
+  1. <task> 
+  2. <task> 
+  3. <task> 
+  4. <task>
+  5. <task> 
+- Keep <task> SHORT (2-4 words max)
+- Each task MUST be inspired directly by the relevant use cases below
+- Do NOT suggest generic business topics (e.g., project management, leadership)
+- Make each suggestion UNIQUE and cover different aspects of AI usage
+- Use verb phrases (e.g., "Summarize documents", "Analyze feedback", "Generate reports")
+
+GOOD EXAMPLES:
+1. Summarize documents 
+2. Analyze customer feedback
+3. Generate sales reports 
+4. Create marketing content 
+5. Automate data entry 
+
+
+BAD EXAMPLES (too long):
+1. How to use AI to summarize long documents for quick insights using AI
+
+======= USER CONTEXT =======
+Role: {user_role}
+Completed modules: {', '.join(completed_modules) if completed_modules else "None"}
+Long-term memory: {long_term_summary}
+Short-term memory: {short_term_summary}
+
+======= RELEVANT USE CASES (from Vector DB) =======
+{use_case_text}
+
+======= ACTION =======
+Based on the user's role and the use cases above, generate EXACTLY 5 suggestions:
+
+1. <task> 
+2. <task> 
+3. <task>
+4. <task>
+5. <task> 
+
+Return ONLY the numbered list. No explanation.
+"""
+
+        # Debug print
+        print("\n===== NAVIGATOR PROMPT =====\n")
+        print(full_prompt)
+        print("\n=============================\n")
+
+        return full_prompt
+
+
 
     # -------------------------------------------------------------------------
     # Main function: get next learning options

@@ -133,7 +133,7 @@ class AssessmentAgent:
             print(f"❌ Assessment Agent failed to generate or parse quiz JSON: {e}")
             return None
 
-    def _getModules(self, user_id: str) -> str:
+    def getModules(self, user_id: str) -> str:
         """
         Retrieves the list of modules completed by the user from PostgreSQL.
         """
@@ -144,7 +144,12 @@ class AssessmentAgent:
                     (user_id,)
                 )
                 rows = cursor.fetchall()
-                modules = [row[0] for row in rows]
+                modules = []
+                for row in rows:
+                    if isinstance(row[0], list):
+                        modules.extend(row[0])
+                    else:
+                        modules.append(row[0])
                 return ", ".join(modules)
         except Exception as e:
             print(f"❌ Failed to retrieve modules for user {user_id}: {e}")
@@ -181,14 +186,14 @@ def main():
     )
 
     llm_client = OpenAI(api_key=OPENAI_API_KEY)
-    sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
+    sample_user_id = "07c813e7-987a-47bf-a284-d51283754760"
 
-    agent = AssessmentAgent(llm_client)
+    agent = AssessmentAgent(llm_client, postgres_conn)
 
     print("\n=== Testing Quiz Generation ===")
 
     # Get modules for the user
-    modules = agent._getModules(sample_user_id)
+    modules = agent.getModules(sample_user_id)
     print(f"User completed modules: {modules}")
 
     # Generate a quiz

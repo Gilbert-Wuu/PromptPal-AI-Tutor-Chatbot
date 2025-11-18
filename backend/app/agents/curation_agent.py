@@ -30,20 +30,20 @@ class CurationAgent:
         # If Perplexity API key available, use it for web search
         if self.perplexity_api_key:
             try:
-                url = "https://api.perplexity.ai/chat/completions"
-                headers = {
-                    "Authorization": f"Bearer {self.perplexity_api_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": self.model,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ]
-                }
-                response = requests.post(url, json=payload, headers=headers)
+        url = "https://api.perplexity.ai/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.perplexity_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+        response = requests.post(url, json=payload, headers=headers)
                 if response.status_code == 200:
-                    content = response.json()["choices"][0]["message"]["content"]
+        content = response.json()["choices"][0]["message"]["content"]
                 else:
                     # Fallback to OpenAI
                     content = self._use_openai_fallback(prompt)
