@@ -70,15 +70,16 @@
     max-width: 900px; /* Same width as other components for alignment */
     display: flex;
     align-items: center;
-    justify-content: center; /* Center alignment */
-    margin: 0 auto; /* Center horizontally with auto margins */
+    
+    margin-left: 400px;       /* Override left margin */
+    margin-right: 200px; /* Center horizontally with auto margins */
 }
 
 /* Form container for input and send button */
 .welcomeInputForm {
     position: relative; /* Allows absolute positioning of send button inside */
     width: 100%;
-    max-width: 750px; /* Wider to center properly with star */
+    max-width: 600px; /* Wider to center properly with star */
 }
 
 /* Main input box - where users type their questions */
