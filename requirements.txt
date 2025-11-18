@@ -18,4 +18,4 @@ datasets
 transformers
 langchain-openai
 psycopg2-binary
-google-genai
+google-generativeai

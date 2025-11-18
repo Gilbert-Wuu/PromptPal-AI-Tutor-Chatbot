@@ -31,7 +31,9 @@ const ChatComponent = () => {
     const [documents, setDocuments] = useState<Document[]>([]);
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
     const [showDocSelector, setShowDocSelector] = useState<boolean>(false);
+    const [isWelcomeView, setIsWelcomeView] = useState<boolean>(true); // Track if we're in welcome view
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const docSelectorRef = useRef<HTMLDivElement>(null); // Ref for document selector popup
     const hasInitialized = useRef<boolean>(false);
 
     // Load chat history from localStorage on mount
@@ -48,6 +50,7 @@ const ChatComponent = () => {
                     setMessages(savedMessages);
                     setSuggestions(savedSuggestions || []);
                     setSelectedDocIds(savedDocIds || []);
+                    setIsWelcomeView(false); // If we have messages, show conversation view
                     hasInitialized.current = true; // Skip initial fetch if we have cached data
                     setIsLoading(false);
                 }
@@ -55,6 +58,19 @@ const ChatComponent = () => {
                 console.error("Failed to load chat session:", error);
             }
         }
+
+        // Listen for reset event from Header (when logo is clicked)
+        const handleReset = () => {
+            setMessages([]);
+            setSuggestions([]);
+            setSelectedDocIds([]);
+            setIsWelcomeView(true);
+            hasInitialized.current = false;
+            setIsLoading(true);
+        };
+
+        window.addEventListener('resetChat', handleReset);
+        return () => window.removeEventListener('resetChat', handleReset);
     }, [user?.user_id]);
 
     // Save chat history to localStorage whenever messages, suggestions, or selectedDocIds change
@@ -153,8 +169,36 @@ const ChatComponent = () => {
         fetchInitialGreeting();
     }, [user]);
 
+    // Close document selector when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (docSelectorRef.current && !docSelectorRef.current.contains(event.target as Node)) {
+                // Check if the click is also not on the button that toggles the selector
+                const target = event.target as HTMLElement;
+                if (!target.closest(`.${styles.docSelectorButton}`)) {
+                    setShowDocSelector(false);
+                }
+            }
+        };
+
+        // Add event listener when popup is shown
+        if (showDocSelector) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        // Cleanup
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showDocSelector]);
+
     const handleSubmitQuery = async (query: string) => {
         if (!query || isLoading || !user?.user_id || !user?.role) return;
+
+        // Switch from welcome view to conversation view
+        if (isWelcomeView) {
+            setIsWelcomeView(false);
+        }
 
         setIsLoading(true);
         setIsLoadingSuggestions(true);
@@ -230,99 +274,176 @@ const ChatComponent = () => {
     };
 
     const clearChatHistory = () => {
-        if (window.confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
-            if (user?.user_id) {
-                localStorage.removeItem(`chat_session_${user.user_id}`);
-            }
-            setMessages([]);
-            setSuggestions([]);
-            setSelectedDocIds([]);
-            hasInitialized.current = false;
-            
-            // Re-initialize chat
-            const greeting = "Hello! I'm your Personal Learning Portal. Ask me a question or choose a prompt below to get started.";
-            setMessages([{ sender: 'portal', content: greeting }]);
-            
-            // Fetch fresh suggestions
-            if (user?.user_id && user?.role) {
-                setIsLoadingSuggestions(true);
-                axios.post(`${API_BASE_URL}/chat/`, {
-                    user_id: user.user_id,
-                    user_role: user.role,
-                    is_initial: true,
-                }).then(response => {
-                    const learningOptions = response.data.learning_options || [];
-                    const suggestions = response.data.suggestions || [];
-                    let suggestionTexts: string[] = [];
-                    if (learningOptions.length > 0) {
-                        suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
-                    } else if (suggestions.length > 0) {
-                        suggestionTexts = suggestions.map((s: any) => s.text || s);
-                    }
-                    setSuggestions(suggestionTexts);
-                }).catch(error => {
-                    console.error("Failed to fetch suggestions:", error);
-                }).finally(() => {
-                    setIsLoadingSuggestions(false);
-                });
-            }
+        if (user?.user_id) {
+            localStorage.removeItem(`chat_session_${user.user_id}`);
+        }
+        setMessages([]);
+        setSuggestions([]);
+        setSelectedDocIds([]);
+        hasInitialized.current = false;
+        setIsWelcomeView(true); // Return to welcome view
+        setIsLoading(true);
+        
+        // Fetch fresh suggestions for welcome view
+        if (user?.user_id && user?.role) {
+            setIsLoadingSuggestions(true);
+            axios.post(`${API_BASE_URL}/chat/`, {
+                user_id: user.user_id,
+                user_role: user.role,
+                is_initial: true,
+            }).then(response => {
+                const learningOptions = response.data.learning_options || [];
+                const suggestions = response.data.suggestions || [];
+                let suggestionTexts: string[] = [];
+                if (learningOptions.length > 0) {
+                    suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
+                } else if (suggestions.length > 0) {
+                    suggestionTexts = suggestions.map((s: any) => s.text || s);
+                }
+                setSuggestions(suggestionTexts);
+            }).catch(error => {
+                console.error("Failed to fetch suggestions:", error);
+            }).finally(() => {
+                setIsLoadingSuggestions(false);
+                setIsLoading(false);
+            });
+        } else {
+            setIsLoading(false);
         }
     };
 
-    return (
-        <div className={styles.chatContainer}>
-            {/* Clear Chat Button */}
-            {messages.length > 1 && (
-                <div className={styles.clearChatContainer}>
-                    <button onClick={clearChatHistory} className={styles.clearChatButton}>
-                        Clear Chat History
-                    </button>
+    // WELCOME VIEW - Similar to Figma Make
+    if (isWelcomeView) {
+        return (
+            <div className={styles.welcomeContainer}>
+                <div className={styles.welcomeContent}>
+                    <div className={styles.welcomeHeader}>
+                        <div className={styles.sparkle}>✨</div>
+                        <h1 className={styles.welcomeTitle}>Ready to unlock the power of AI?</h1>
+                        <p className={styles.welcomeSubtitle}>Discover how AI tools can transform your daily work and boost your productivity - no technical background needed!</p>
+                    </div>
+
+                    <div className={styles.welcomeInputSection}>
+                        <form 
+                            className={styles.welcomeInputForm} 
+                            onSubmit={(e) => { 
+                                e.preventDefault(); 
+                                if (inputValue.trim()) handleSubmitQuery(inputValue); 
+                            }}
+                        >
+                            <input
+                                type="text"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                placeholder="What do you want to learn..."
+                                className={styles.welcomeInput}
+                                disabled={isLoading}
+                                autoFocus
+                            />
+                            <button type="submit" className={styles.welcomeSendButton} disabled={isLoading || !inputValue.trim()}>
+                                →
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className={styles.welcomeSuggestionsContainer}>
+                        <h2 className={styles.suggestionsHeader}>How to use AI in</h2>
+                        <div className={styles.welcomeSuggestions}>
+                            {isLoadingSuggestions ? (
+                                <div className={styles.loadingContainer}>
+                                    <span className={styles.loader}></span>
+                                    <span className={styles.loadingText}>Generating personalized prompts...</span>
+                                </div>
+                            ) : (
+                                suggestions.slice(0, 5).map((suggestion, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleSubmitQuery(suggestion)}
+                                        className={styles.welcomeSuggestionCard}
+                                    >
+                                        <div className={styles.suggestionContent}>
+                                            <span className={styles.suggestionText}>{suggestion}</span>
+                                        </div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 </div>
+            </div>
+        );
+    }
+
+    // CONVERSATION VIEW - Similar to Leonardo AI
+    return (
+        <div className={styles.conversationContainer}>
+            {/* Clear Chat Button */}
+            {messages.length > 0 && (
+                <button onClick={clearChatHistory} className={styles.newChatButton} title="Start new chat">
+                    + New Chat
+                </button>
             )}
             
+            {/* Messages */}
             <div className={styles.messageList}>
                 {messages.map((msg, index) => (
                     <div key={index} className={`${styles.message} ${styles[msg.sender]}`}>
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <div className={styles.messageContent}>
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
                     </div>
                 ))}
-                {isLoading && <div className={`${styles.message} ${styles.portal}`}><span className={styles.loader}></span></div>}
+                {isLoading && (
+                    <div className={`${styles.message} ${styles.portal}`}>
+                        <div className={styles.messageContent}>
+                            <span className={styles.loader}></span>
+                        </div>
+                    </div>
+                )}
                 <div ref={chatEndRef} />
             </div>
 
-            <div className={styles.suggestions}>
-                <div className={styles.suggestionsHeader}>
-                    <span className={styles.suggestionsTitle}>Suggested Topics</span>
-                    {suggestions.length > 0 && !isLoadingSuggestions && (
-                        <button 
-                            onClick={refreshSuggestions} 
-                            className={styles.refreshButton}
-                            title="Get new suggestions"
-                        >
-                            Refresh
-                        </button>
-                    )}
-                </div>
-                {isLoadingSuggestions ? (
-                    <div className={styles.suggestionsLoading}>
-                        <span className={styles.loader}></span>
-                        <span className={styles.loadingText}>Generating suggestions...</span>
-                    </div>
-                ) : (
-                    <div className={styles.suggestionsList}>
-                        {suggestions.map((s, index) => (
-                            <button key={index} onClick={() => handleSubmitQuery(s)} className={styles.suggestionButton}>
-                                {s}
+            {/* Suggestions above input */}
+            {suggestions.length > 0 && (
+                <div className={styles.conversationSuggestionsContainer}>
+                    <div className={styles.suggestionsHeaderRow}>
+                        <h3 className={styles.conversationSuggestionsHeader}>How to use AI in</h3>
+                        {!isLoadingSuggestions && (
+                            <button 
+                                onClick={refreshSuggestions} 
+                                className={styles.refreshButton}
+                                title="Get new suggestions"
+                            >
+                                🔄
                             </button>
-                        ))}
+                        )}
                     </div>
-                )}
-            </div>
+                    <div className={styles.conversationSuggestions}>
+                        {isLoadingSuggestions ? (
+                            <div className={styles.suggestionsLoading}>
+                                <span className={styles.loader}></span>
+                                <span className={styles.loadingText}>Generating suggestions...</span>
+                            </div>
+                        ) : (
+                            suggestions.slice(0, 5).map((s, index) => (
+                                <button 
+                                    key={index} 
+                                    onClick={() => handleSubmitQuery(s)} 
+                                    className={styles.conversationSuggestionButton}
+                                >
+                                    {s}
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
 
+            {/* Input Area */}
             <div className={styles.inputArea}>
                 {/* Document Selector Dropdown */}
                 {showDocSelector && (
-                    <div className={styles.docListPopup}>
+                    <div ref={docSelectorRef} className={styles.docListPopup}>
                         {documents.length > 0 ? (
                             <>
                                 <div className={styles.docListHeader}>
@@ -358,15 +479,7 @@ const ChatComponent = () => {
                     </div>
                 )}
                 
-                <form className={styles.inputForm} onSubmit={(e) => { e.preventDefault(); handleSubmitQuery(inputValue); }}>
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Type your question here..."
-                        className={styles.input}
-                        disabled={isLoading}
-                    />
+                <form className={styles.inputForm} onSubmit={(e) => { e.preventDefault(); if (inputValue.trim()) handleSubmitQuery(inputValue); }}>
                     <button 
                         type="button"
                         className={styles.docSelectorButton}
@@ -375,8 +488,16 @@ const ChatComponent = () => {
                     >
                         📎 {selectedDocIds.length > 0 && `(${selectedDocIds.length})`}
                     </button>
-                    <button type="submit" className={styles.sendButton} disabled={isLoading}>
-                        Send
+                    <input
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="What do you want to see..."
+                        className={styles.input}
+                        disabled={isLoading}
+                    />
+                    <button type="submit" className={styles.sendButton} disabled={isLoading || !inputValue.trim()}>
+                        →
                     </button>
                 </form>
             </div>

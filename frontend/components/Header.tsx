@@ -2,16 +2,30 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import styles from './Header.module.css';
 import { useAuth } from '../contexts/AuthContext';
 
 const Header = () => {
     const { user, logout } = useAuth();
+    const router = useRouter();
+
+    const handleLogoClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        // Clear chat session to return to welcome view
+        if (user?.user_id) {
+            localStorage.removeItem(`chat_session_${user.user_id}`);
+        }
+        // Dispatch custom event to reset chat
+        window.dispatchEvent(new Event('resetChat'));
+        // Navigate to home
+        router.push('/');
+    };
 
     return (
         <header className={styles.header}>
             <div className={styles.container}>
-                <Link href="/" className={styles.logo}>
+                <Link href="/" className={styles.logo} onClick={handleLogoClick}>
                     <Image 
                         src="/images/logo.png" 
                         alt="AI Learning Portal Logo" 

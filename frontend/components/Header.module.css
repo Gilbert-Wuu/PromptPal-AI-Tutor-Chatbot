@@ -1,9 +1,9 @@
 .header {
     width: 100%;
-    background-color: #ffffff;
-    border-bottom: 1px solid #eaeaea;
+    background: linear-gradient(90deg, #5c9ed9 0%, #4a8ed4 100%); /* Darker blue gradient */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4); /* Subtle separator line */
     padding: 1rem 2rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .container {
@@ -30,8 +30,8 @@
 
 .logoText {
     font-size: 1.25rem;
-    font-weight: 600;
-    color: #333;
+    font-weight: 700; /* Bold for modern look */
+    color: #1e3a8a; /* Dark blue matching conversation page */
 }
 
 .nav {
@@ -44,20 +44,22 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.625rem 1rem;
-    background: linear-gradient(135deg, #b5e2ff 0%, #6bb6ff 100%);
-    color: #003366;
-    border-radius: 8px;
+    padding: 0.75rem 1.25rem; /* Slightly larger */
+    background: rgba(255, 255, 255, 0.8); /* 80% transparent white with glass effect */
+    color: #1e3a8a; /* Dark blue */
+    border-radius: 12px; /* More rounded */
     text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition: all 0.2s ease-in-out;
-    box-shadow: 0 2px 8px rgba(181, 226, 255, 0.4);
+    font-size: 0.9rem;
+    font-weight: 700; /* Bold */
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px); /* Glass effect */
 }
 
 .featureButton:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(181, 226, 255, 0.6);
+    background: rgba(255, 255, 255, 0.95); /* More opaque on hover */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .icon {
@@ -69,26 +71,32 @@
     align-items: center;
     gap: 1rem;
     padding-left: 1rem;
-    border-left: 1px solid #eaeaea;
+    border-left: 1px solid rgba(255, 255, 255, 0.3); /* Light separator */
 }
 
 .userInfo {
     font-size: 0.875rem;
-    color: #666;
+    color: #1e3a8a; /* Dark blue */
+    font-weight: 500;
 }
 
 .logoutButton {
-    padding: 0.5rem 1rem;
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    padding: 0.625rem 1.125rem;
+    background: rgba(255, 255, 255, 0.8); /* Glass effect matching buttons */
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 10px;
     font-size: 0.875rem;
-    color: #333;
+    font-weight: 600;
+    color: #1e3a8a; /* Dark blue */
     cursor: pointer;
-    transition: all 0.2s ease-in-out;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .logoutButton:hover {
-    background-color: #e5e5e5;
-    border-color: #ccc;
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
 }
