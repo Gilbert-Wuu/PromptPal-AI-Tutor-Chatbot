@@ -88,6 +88,9 @@ async def get_summary(user_id: str):
 @app.post("/api/train")
 async def train_agent(data: dict):
     try:
+        if not trainer:
+            raise HTTPException(status_code=503, detail="Trainer service is unavailable (Weaviate not connected)")
+        
         response = trainer.generate_learning_content(
             user_id=data.get("user_id"),
             user_role=data.get("user_role"),
@@ -110,13 +113,28 @@ async def generate_assessment(data: dict):
 @app.post("/api/navigate")
 async def navigate_learning(data: dict):
     try:
+        if not navigator:
+            raise HTTPException(status_code=503, detail="Navigator service is unavailable (Weaviate not connected)")
+        
         user_id = data.get("user_id")
         user_role = data.get("user_role")
         completed_modules = data.get("completed_modules", [])
-        options = navigator.get_next_learning_options(user_id, user_role, completed_modules)
-        return {"next_steps": options}
+
+        # Get raw navigator suggestions
+        options = navigator.get_next_learning_options(
+            user_id=user_id,
+            user_role=user_role,
+            completed_modules=completed_modules
+        )
+
+        # 💡 Format suggestions with "using AI"
+        formatted = [f"How to {opt.lower()} using AI?" for opt in options]
+
+        return {"next_steps": formatted}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============================================
 # REQUEST/RESPONSE MODELS
@@ -457,6 +475,9 @@ async def upload_document(data: dict):
         if not all([user_id, filename, file_content]):
             raise HTTPException(status_code=400, detail="Missing required fields")
         
+        if not doc_agent:
+            raise HTTPException(status_code=503, detail="Document service is unavailable (Weaviate not connected)")
+        
         result = doc_agent.upload_document(
             user_id=user_id,
             filename=filename,
@@ -484,6 +505,9 @@ async def upload_document(data: dict):
 async def get_user_documents(user_id: str):
     """Get all documents for a user"""
     try:
+        if not doc_agent:
+            raise HTTPException(status_code=503, detail="Document service is unavailable (Weaviate not connected)")
+        
         documents = doc_agent.get_user_documents(user_id)
         return {"documents": documents}
     except Exception as e:
@@ -497,6 +521,9 @@ async def delete_document(document_id: str, user_id: str = None):
         
         if not user_id:
             raise HTTPException(status_code=400, detail="user_id query parameter is required")
+        
+        if not doc_agent:
+            raise HTTPException(status_code=503, detail="Document service is unavailable (Weaviate not connected)")
         
         result = doc_agent.delete_document(document_id, user_id)
         if result["success"]:
@@ -521,6 +548,9 @@ async def query_documents(data: dict):
         
         if not all([user_id, query]):
             raise HTTPException(status_code=400, detail="Missing user_id or query")
+        
+        if not doc_agent:
+            raise HTTPException(status_code=503, detail="Document service is unavailable (Weaviate not connected)")
         
         result = doc_agent.query_documents(user_id, query, limit)
         return result
