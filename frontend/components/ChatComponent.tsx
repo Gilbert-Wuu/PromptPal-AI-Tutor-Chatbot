@@ -21,6 +21,16 @@ interface Document {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+// Fixed prompts for "Learn AI Fundamentals" tab
+const LEARNING_FUNDAMENTALS_PROMPTS = [
+    "What is a prompt?",
+    "What kinds of AI knowledge we have",
+    "How to write effective prompts",
+    "What is Artificial Intelligence?",
+    "Prompt engineering best practices",
+    "Understanding Large Language Models"
+];
+
 const ChatComponent = () => {
     const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +42,7 @@ const ChatComponent = () => {
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
     const [showDocSelector, setShowDocSelector] = useState<boolean>(false);
     const [isWelcomeView, setIsWelcomeView] = useState<boolean>(true); // Track if we're in welcome view
+    const [activeTab, setActiveTab] = useState<'tasks' | 'learning'>('tasks'); // Tab navigation
     const chatEndRef = useRef<HTMLDivElement>(null);
     const docSelectorRef = useRef<HTMLDivElement>(null); // Ref for document selector popup
     const hasInitialized = useRef<boolean>(false);
@@ -350,29 +361,70 @@ const ChatComponent = () => {
                         </form>
                     </div>
 
-                    <div className={styles.welcomeSuggestionsContainer}>
-                        <h2 className={styles.suggestionsHeader}>How to use AI in tasks like ...</h2>
-                        <div className={styles.welcomeSuggestions}>
-                            {isLoadingSuggestions ? (
-                                <div className={styles.loadingContainer}>
-                                    <span className={styles.loader}></span>
-                                    <span className={styles.loadingText}>Generating personalized prompts...</span>
-                                </div>
-                            ) : (
-                                suggestions.slice(0, 5).map((suggestion, index) => (
+                    {/* Tab Navigation */}
+                    <div className={styles.tabNavigation}>
+                        <button 
+                            className={`${styles.tabButton} ${activeTab === 'tasks' ? styles.active : ''}`}
+                            onClick={() => setActiveTab('tasks')}
+                        >
+                            <span className={styles.tabIcon}>🚀</span>
+                            Use AI in Tasks
+                        </button>
+                        <button 
+                            className={`${styles.tabButton} ${activeTab === 'learning' ? styles.active : ''}`}
+                            onClick={() => setActiveTab('learning')}
+                        >
+                            <span className={styles.tabIcon}>🎓</span>
+                            Learn AI Fundamentals
+                        </button>
+                    </div>
+
+                    {/* Tasks Tab Content */}
+                    {activeTab === 'tasks' && (
+                        <div className={styles.welcomeSuggestionsContainer}>
+                            <h2 className={styles.suggestionsHeader}>How to use AI in tasks like ...</h2>
+                            <div className={styles.welcomeSuggestions}>
+                                {isLoadingSuggestions ? (
+                                    <div className={styles.loadingContainer}>
+                                        <span className={styles.loader}></span>
+                                        <span className={styles.loadingText}>Generating personalized prompts...</span>
+                                    </div>
+                                ) : (
+                                    suggestions.slice(0, 5).map((suggestion, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => handleSubmitQuery(suggestion)}
+                                            className={styles.welcomeSuggestionCard}
+                                        >
+                                            <div className={styles.suggestionContent}>
+                                                <span className={styles.suggestionText}>{suggestion}</span>
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Learning Tab Content */}
+                    {activeTab === 'learning' && (
+                        <div className={styles.welcomeSuggestionsContainer}>
+                            <h2 className={styles.suggestionsHeader}>Learn AI fundamentals and prompting ...</h2>
+                            <div className={styles.welcomeSuggestions}>
+                                {LEARNING_FUNDAMENTALS_PROMPTS.map((prompt, index) => (
                                     <button
                                         key={index}
-                                        onClick={() => handleSubmitQuery(suggestion)}
+                                        onClick={() => handleSubmitQuery(prompt)}
                                         className={styles.welcomeSuggestionCard}
                                     >
                                         <div className={styles.suggestionContent}>
-                                            <span className={styles.suggestionText}>{suggestion}</span>
+                                            <span className={styles.suggestionText}>{prompt}</span>
                                         </div>
                                     </button>
-                                ))
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         );
