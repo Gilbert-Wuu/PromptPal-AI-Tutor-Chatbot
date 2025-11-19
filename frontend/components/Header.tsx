@@ -38,11 +38,11 @@ const Header = () => {
                 </Link>
                 <nav className={styles.nav}>
                     <Link href="/quiz" className={styles.featureButton}>
-                        <span className={styles.icon}>🧠</span>
+                        <span className={styles.icon}>📖</span>
                         <span>Take a Quiz</span>
                     </Link>
                     <Link href="/ingestor" className={styles.featureButton}>
-                        <span className={styles.icon}>📤</span>
+                        <span className={styles.icon}>+</span>
                         <span>Add Content</span>
                     </Link>
                     {user && (

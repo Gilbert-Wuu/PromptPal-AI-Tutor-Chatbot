@@ -70,8 +70,7 @@
     max-width: 900px; /* Same width as other components for alignment */
     display: flex;
     align-items: center;
-    
-    margin-left: 400px;       /* Override left margin */
+    margin-left: 400px; /* Center alignment */
     margin-right: 200px; /* Center horizontally with auto margins */
 }
 
@@ -87,18 +86,19 @@
     width: 100%;
     padding: 1.5rem 4.5rem 1.5rem 1.75rem; /* Extra right padding for send button inside */
     font-size: 1.1rem;
-    border: none;
+    border: 2px solid #e2e8f0; /* Light gray border */
     border-radius: 16px; /* Rounded corners */
     background: white;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); /* Large shadow for depth */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Softer shadow for white background */
     transition: all 0.3s ease; /* Smooth animations on focus */
     outline: none; /* Remove default browser outline */
 }
 
 /* Input box when user clicks on it - enhanced shadow and lift effect */
 .welcomeInput:focus {
-    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4); /* Stronger shadow */
-    transform: translateY(-4px); /* Lifts up slightly */
+    border-color: #3b82f6; /* Blue border on focus */
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2); /* Blue shadow on focus */
+    transform: translateY(-2px); /* Lifts up slightly */
 }
 
 /* Placeholder text styling */
@@ -180,7 +180,7 @@
     text-align: center;
     color: white;
     width: auto; /* Auto-size based on content */
-    white-space: nowrap; /* Prevent text wrapping */
+    white-space: nowrap;
 }
 
 /* Suggestion card hover effect - lifts and brightens */

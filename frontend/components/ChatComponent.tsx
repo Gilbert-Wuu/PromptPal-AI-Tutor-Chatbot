@@ -202,13 +202,17 @@ const ChatComponent = () => {
 
         setIsLoading(true);
         setIsLoadingSuggestions(true);
-        // Add user message to chat immediately for snappy UI
+        
+        // Display the original query in UI
         setMessages(prev => [...prev, { sender: 'user', content: query }]);
         setInputValue(''); // Clear input field
 
+        // Format query for backend: add "How to use AI in" prefix
+        const formattedQuery = `How to use AI in ${query}`;
+
         try {
             const response = await axios.post(`${API_BASE_URL}/chat/`, {
-                content: query,
+                content: formattedQuery,  // Send formatted query to backend
                 user_id: user.user_id,
                 user_role: user.role,
                 selected_documents: selectedDocIds.length > 0 ? selectedDocIds : undefined,
@@ -320,7 +324,7 @@ const ChatComponent = () => {
                     <div className={styles.welcomeHeader}>
                         <div className={styles.sparkle}>✨</div>
                         <h1 className={styles.welcomeTitle}>Ready to unlock the power of AI?</h1>
-                        <p className={styles.welcomeSubtitle}>Discover how AI tools can transform your daily work and boost your productivity - no technical background needed!</p>
+                        <p className={styles.welcomeSubtitle}>Discover how AI tools can transform your {user?.role} daily work and boost your productivity - no technical background needed!</p>
                     </div>
 
                     <div className={styles.welcomeInputSection}>
@@ -347,7 +351,7 @@ const ChatComponent = () => {
                     </div>
 
                     <div className={styles.welcomeSuggestionsContainer}>
-                        <h2 className={styles.suggestionsHeader}>How to use AI in</h2>
+                        <h2 className={styles.suggestionsHeader}>How to use AI in tasks like ...</h2>
                         <div className={styles.welcomeSuggestions}>
                             {isLoadingSuggestions ? (
                                 <div className={styles.loadingContainer}>
