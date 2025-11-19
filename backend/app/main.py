@@ -76,66 +76,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/api/summary/{user_id}")
-async def get_summary(user_id: str):
-    try:
-        long_term_summary = summary.get_long_term_summary(user_id)
-        short_term_summary = summary.get_short_term_summary(user_id)
-        return {"long_term_summary": long_term_summary, "short_term_summary": short_term_summary}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/train")
-async def train_agent(data: dict):
-    try:
-        if not trainer:
-            raise HTTPException(status_code=503, detail="Trainer service is unavailable (Weaviate not connected)")
-        
-        response = trainer.generate_learning_content(
-            user_id=data.get("user_id"),
-            user_role=data.get("user_role"),
-            query=data.get("query")
-        )
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/assessment")
-async def generate_assessment(data: dict):
-    try:
-        user_id = data.get("user_id")
-        topic = data.get("topic")
-        response = await assessment.create_quiz(topic, assessment.getModules(user_id))
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/navigate")
-async def navigate_learning(data: dict):
-    try:
-        if not navigator:
-            raise HTTPException(status_code=503, detail="Navigator service is unavailable (Weaviate not connected)")
-        
-        user_id = data.get("user_id")
-        user_role = data.get("user_role")
-        completed_modules = data.get("completed_modules", [])
-
-        # Get raw navigator suggestions
-        options = navigator.get_next_learning_options(
-            user_id=user_id,
-            user_role=user_role,
-            completed_modules=completed_modules
-        )
-
-        # 💡 Format suggestions with "using AI"
-        formatted = [f"How to {opt.lower()} using AI?" for opt in options]
-
-        return {"next_steps": formatted}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ============================================
 # REQUEST/RESPONSE MODELS
 # ============================================
@@ -548,26 +488,4 @@ async def delete_document(document_id: str, user_id: str = None):
         raise
     except Exception as e:
         print(f"Delete error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/documents/query")
-async def query_documents(data: dict):
-    """Query user's documents using RAG"""
-    try:
-        user_id = data.get("user_id")
-        query = data.get("query")
-        limit = data.get("limit", 5)
-        
-        if not all([user_id, query]):
-            raise HTTPException(status_code=400, detail="Missing user_id or query")
-        
-        if not doc_agent:
-            raise HTTPException(status_code=503, detail="Document service is unavailable (Weaviate not connected)")
-        
-        result = doc_agent.query_documents(user_id, query, limit)
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -82,7 +82,7 @@ class TrainerAgent:
                 results = user_doc_collection.query.near_text(
                     query=query,
                     limit=limit * 3,
-                    return_properties=["content", "filename", "chunk_index", "document_id"]
+                    return_properties=["chunk_text", "filename", "chunk_index", "document_id"]
                 )
                 
                 filtered_results = []
@@ -93,7 +93,7 @@ class TrainerAgent:
                     if doc_id in document_ids:
                         filtered_results.append({
                             "title": f"{props.get('filename', 'Document')} (Chunk {props.get('chunk_index', 0)})",
-                            "content": props.get("content", ""),
+                            "content": props.get("chunk_text", ""),
                             "tags": [props.get("filename", "")],
                             "type": "user_document"
                         })
@@ -136,7 +136,7 @@ class TrainerAgent:
                     for item in result["data"]["Get"]["UserDocument"]:
                         filtered_results.append({
                             "title": f"{item.get('filename', 'Document')} (Chunk {item.get('chunk_index', 0)})",
-                            "content": item.get("content", ""),
+                            "content": item.get("chunk_text", ""),
                             "tags": [item.get("filename", "")],
                             "type": "user_document"
                         })
@@ -233,7 +233,7 @@ class TrainerAgent:
             results = []
             
             # If user selected documents, search their documents
-            if selected_document_ids and len(selected_document_ids) > 0:
+            if selected_document_ids:
                 print(f"Searching {len(selected_document_ids)} selected user documents")
                 results = self._search_user_documents(query, selected_document_ids, limit=5)
                 print(f"✅ Found {len(results)} chunks from user documents")
@@ -561,7 +561,9 @@ def main():
         from google.genai import types
         
         gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
+        grounding_tool = types.Tool(google_search=types.GoogleSearch())
         model = "gemini-2.5-pro"
+        config = types.GenerateContentConfig(tools=[grounding_tool])
         
         print(f"✅ Gemini client initialized (model: {model})")
     except Exception as e:
@@ -663,45 +665,52 @@ def main():
     finally:
         cursor.close()
 
+    # =========================================================================
+    # DEBUG: Check Weaviate data
+    # =========================================================================
     print("\n" + "="*60)
     print("DEBUG: Checking Weaviate UserDocument data")
     print("="*60)
 
-    try:
-        # Check total count
-        result = (
-            weaviate_client.query
-            .aggregate("UserDocument")
-            .with_meta_count()
-            .do()
-        )
-        total_count = result["data"]["Aggregate"]["UserDocument"][0]["meta"]["count"]
-        print(f"Total UserDocument chunks in Weaviate: {total_count}")
-        
-        # Get sample documents for our user
-        result = (
-            weaviate_client.query
-            .get("UserDocument", ["document_id", "filename", "chunk_index"])
-            .with_where({
-                "path": ["document_id"],
-                "operator": "Equal",
-                "valueText": selected_doc_ids[0]
-            })
-            .with_limit(5)
-            .do()
-        )
-        
-        if "data" in result and "Get" in result["data"]:
-            docs = result["data"]["Get"]["UserDocument"]
-            print(f"\nSample chunks for document {selected_doc_ids[0]}:")
-            for doc in docs:
-                print(f"   - {doc['filename']} (Chunk {doc['chunk_index']})")
-        else:
-            print(f"⚠️  No chunks found for document {selected_doc_ids[0]}")
-            print(f"   This means the document was NOT embedded into Weaviate!")
+    if documents:
+        print("\n" + "="*60)
+        print("🔍 DEBUG: Checking Weaviate UserDocument data")
+        print("="*60)
+
+        selected_doc_ids = [documents[0][0]]  # First document ID
+
+        try:
+            # 🔥 使用 v4 API
+            user_doc_collection = weaviate_client.collections.get("UserDocument")
             
-    except Exception as e:
-        print(f"❌ Error checking Weaviate data: {e}")
+            # 1. Get total count
+            aggregate_result = user_doc_collection.aggregate.over_all(total_count=True)
+            total_count = aggregate_result.total_count
+            print(f"✅ Total UserDocument chunks in Weaviate: {total_count}")
+            
+            # 2. Get sample documents for selected document_id
+            from weaviate.classes.query import Filter
+            
+            response = user_doc_collection.query.fetch_objects(
+                filters=Filter.by_property("document_id").equal(selected_doc_ids[0]),
+                limit=5,
+                return_properties=["document_id", "filename", "chunk_index", "chunk_text"]
+            )
+            
+            if response.objects:
+                print(f"\n✅ Sample chunks for document {selected_doc_ids[0][:8]}...:\n")
+                for obj in response.objects:
+                    props = obj.properties
+                    print(f"   - {props['filename']} (Chunk {props['chunk_index']})")
+                    print(f"     Content preview: {props['chunk_text'][:100]}...\n")
+            else:
+                print(f"\n⚠️  No chunks found for document {selected_doc_ids[0]}")
+                print(f"   Document might not be embedded yet")
+                
+        except Exception as e:
+            print(f"❌ Error checking Weaviate data: {e}")
+            import traceback
+            traceback.print_exc()
 
     # =========================================================================
     # TEST 2: Generate learning content WITH selected documents
