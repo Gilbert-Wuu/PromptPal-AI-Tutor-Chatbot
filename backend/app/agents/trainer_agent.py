@@ -18,7 +18,7 @@ class Summary(BaseModel):
     summary: str
 
 class TrainerAgent:
-    def __init__(self, postgres_client, weaviate_client, summary_agent, llm_client, llm_model, config, grounding_tool):
+    def __init__(self, postgres_client, weaviate_client, summary_agent, llm_client, llm_model, config, grounding_tool, openai_client=None, openai_model="gpt-4"):
         self.postgres_client = postgres_client
         self.weaviate_client = weaviate_client
         self.summary_agent = summary_agent
@@ -26,6 +26,8 @@ class TrainerAgent:
         self.llm_model = llm_model
         self.config = config
         self.grounding_tool = grounding_tool
+        self.openai_client = openai_client
+        self.openai_model = openai_model
 
     def _is_content_rich(self, results):
         """Check if retrieved content is sufficient"""
@@ -70,38 +72,77 @@ class TrainerAgent:
     def _search_user_documents(self, query, document_ids, limit=5):
         """Search user's uploaded documents in Weaviate"""
         try:
-            if not hasattr(self.weaviate_client, 'collections'):
-                print("Weaviate v4 client not available")
-                return []
-            
-            user_doc_collection = self.weaviate_client.collections.get("UserDocument")
-            
-            # Query with document ID filter
-            results = user_doc_collection.query.near_text(
-                query=query,
-                limit=limit * 3,  # Get more results to filter
-                return_properties=["content", "filename", "chunk_index", "document_id"]
-            )
-            
-            # Filter by selected document IDs
-            filtered_results = []
-            for obj in results.objects:
-                props = obj.properties
-                doc_id = props.get("document_id", "")
+            print(f"Searching for user documents: {document_ids}")
+
+            if hasattr(self.weaviate_client, 'collections'):
+                # ===== Weaviate v4 client =====
+                print("Using Weaviate v4 client")
+                user_doc_collection = self.weaviate_client.collections.get("UserDocument")
                 
-                if doc_id in document_ids:
-                    filtered_results.append({
-                        "title": f"{props.get('filename', 'Document')} (Chunk {props.get('chunk_index', 0)})",
-                        "content": props.get("content", ""),
-                        "tags": [props.get("filename", "")],
-                        "type": "user_document"
-                    })
+                results = user_doc_collection.query.near_text(
+                    query=query,
+                    limit=limit * 3,
+                    return_properties=["content", "filename", "chunk_index", "document_id"]
+                )
+                
+                filtered_results = []
+                for obj in results.objects:
+                    props = obj.properties
+                    doc_id = props.get("document_id", "")
                     
-                    if len(filtered_results) >= limit:
-                        break
-            
-            print(f"Found {len(filtered_results)} relevant chunks from user documents")
-            return filtered_results
+                    if doc_id in document_ids:
+                        filtered_results.append({
+                            "title": f"{props.get('filename', 'Document')} (Chunk {props.get('chunk_index', 0)})",
+                            "content": props.get("content", ""),
+                            "tags": [props.get("filename", "")],
+                            "type": "user_document"
+                        })
+                        
+                        if len(filtered_results) >= limit:
+                            break
+                
+                print(f"Found {len(filtered_results)} relevant chunks from user documents (v4)")
+                return filtered_results
+            else:
+                # ===== Weaviate v3 client =====
+                print("Using Weaviate v3 client")
+                
+                # Build where filter for document IDs
+                where_filter = {
+                    "operator": "Or",
+                    "operands": [
+                        {
+                            "path": ["document_id"],
+                            "operator": "Equal",
+                            "valueText": doc_id
+                        }
+                        for doc_id in document_ids
+                    ]
+                }
+                
+                # Query Weaviate v3
+                result = (
+                    self.weaviate_client.query
+                    .get("UserDocument", ["content", "filename", "chunk_index", "document_id"])
+                    .with_near_text({"concepts": [query]})
+                    .with_where(where_filter)
+                    .with_limit(limit)
+                    .do()
+                )
+                
+                # Extract results
+                filtered_results = []
+                if "data" in result and "Get" in result["data"] and "UserDocument" in result["data"]["Get"]:
+                    for item in result["data"]["Get"]["UserDocument"]:
+                        filtered_results.append({
+                            "title": f"{item.get('filename', 'Document')} (Chunk {item.get('chunk_index', 0)})",
+                            "content": item.get("content", ""),
+                            "tags": [item.get("filename", "")],
+                            "type": "user_document"
+                        })
+                
+                print(f"Found {len(filtered_results)} relevant chunks from user documents (v3)")
+                return filtered_results
             
         except Exception as e:
             logging.error(f"Error searching user documents: {e}")
@@ -195,11 +236,13 @@ class TrainerAgent:
             if selected_document_ids and len(selected_document_ids) > 0:
                 print(f"Searching {len(selected_document_ids)} selected user documents")
                 results = self._search_user_documents(query, selected_document_ids, limit=5)
+                print(f"✅ Found {len(results)} chunks from user documents")
             
             # If no results from user documents, or no documents selected, search knowledge base
             if not results:
                 print("Searching general knowledge base")
                 results = self._search_knowledge_base(query, user_role, short_term, long_term)
+                print(f"✅ Found {len(results)} results from knowledge base")
 
             # If no results found, create some basic learning content
             if not results:
@@ -279,6 +322,85 @@ class TrainerAgent:
 
         return text
     
+    def generate_follow_up_questions(self, user_id: str, user_role: str, current_topic: str, lesson_content: str) -> list:
+        """Generate 3 follow-up questions to dive deeper into current topic"""
+        try:
+            # Get user context
+            long_term = self.summary_agent.get_long_term_summary(user_id)
+            short_term = self.summary_agent.get_short_term_summary(user_id)
+            
+            prompt = f"""
+    You are an AI learning assistant. The user just learned about: "{current_topic}"
+
+    User role: {user_role}
+    Recent learning: {short_term}
+    Learning history: {long_term}
+
+    Lesson content summary:
+    {lesson_content[:500]}...
+
+    Generate EXACTLY 3 short, actionable follow-up prompts (5-6 words each) that help the user dive deeper into this topic.
+    
+    Requirements:
+    - Each prompt should be 5-6 words maximum
+    - Focus on practical, role-specific applications
+    - Use imperative or noun phrases (not full questions)
+    - Be specific to what they just learned
+
+    Format:
+    1. <short prompt>
+    2. <short prompt>
+    3. <short prompt>
+
+    Good examples:
+    1. Implement churn prediction model
+    2. Common ML pitfalls to avoid
+    3. Real-world customer retention examples
+
+    Bad examples (too long):
+    1. How can I implement this machine learning approach in my sales workflow?
+    2. What are some of the common mistakes that I should avoid?
+
+    Return ONLY the 3 numbered questions, nothing else.
+    """
+            
+            response = self.openai_client.chat.completions.create(
+                model=self.openai_model,
+                messages=[{"role": "system", "content": prompt}],
+                max_tokens=150,
+                temperature=0.7
+            )
+            
+            text = response.choices[0].message.content
+            print(f"✅ Follow-up questions response:\n{text}")
+            
+            # Parse response
+            questions = []
+            for line in text.strip().split('\n'):
+                line = line.strip()
+                if line and line[0].isdigit():
+                    # Remove number prefix
+                    question = line.split('.', 1)[-1].strip()
+                    if question:
+                        questions.append({
+                            "id": f"followup_{len(questions) + 1}",
+                            "text": question
+                        })
+            
+            return questions[:3]
+            
+        except Exception as e:
+            logging.error(f"Error generating follow-up questions: {e}")
+            # Fallback
+            topic_words = current_topic.split()[:3]  # Take first 3 words
+            topic_short = " ".join(topic_words)
+            
+            return [
+                {"id": "followup_1", "text": f"Deep dive into {topic_short}"},
+                {"id": "followup_2", "text": f"Practical {topic_short} examples"},
+                {"id": "followup_3", "text": f"Common {topic_short} mistakes"}
+            ]
+
     def update_user_learning_progress(self, user_id: str, completed_module: str) -> bool:
         """Update user's learning progress when they complete a module"""
         cursor = self.postgres_client.cursor()
@@ -385,161 +507,274 @@ class TrainerAgent:
             cursor.close()
 
 def main():
-    """Main function for testing TrainerAgent"""
-    if 'OPENAI_API_KEY' in os.environ:
-        del os.environ['OPENAI_API_KEY']
-        
+    """Simplified main function for testing generate_follow_up_questions"""
     import dotenv
     dotenv.load_dotenv()
 
     # Set up environment variables
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    WEAVIATE_URL = os.getenv("WEAVIATE_URL")
-
+    
+    # Supabase PostgreSQL connection (already deployed)
     POSTGRES_HOST = os.getenv("POSTGRES_HOST")
     POSTGRES_DB = os.getenv("POSTGRES_DB")
     POSTGRES_USER = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+    WEAVIATE_URL = os.getenv("WEAVIATE_URL")
 
-    print(f"🔧 Connecting to databases...")
-    print(f"   PostgreSQL: {POSTGRES_HOST}:{POSTGRES_PORT}")
+    print("🔧 Testing TrainerAgent with Document Selection...")
+    print(f"   PostgreSQL (Supabase): {POSTGRES_HOST}:{POSTGRES_PORT}")
     print(f"   Weaviate: {WEAVIATE_URL}")
 
-    # Initialize dependencies with error handling
-    postgres_conn = None
-    weaviate_client = None
-    
+    # Connect to Supabase PostgreSQL
     try:
         postgres_conn = psycopg2.connect(
             dbname=POSTGRES_DB,
             user=POSTGRES_USER,
             password=POSTGRES_PASSWORD,
             host=POSTGRES_HOST,
-            port=POSTGRES_PORT
+            port=POSTGRES_PORT,
+            sslmode='require'  # Supabase requires SSL
         )
-        print("✅ PostgreSQL connected successfully")
+        print("✅ Connected to Supabase PostgreSQL")
     except Exception as e:
         print(f"❌ PostgreSQL connection error: {e}")
         return
 
-    # CREATE TEST USER FIRST - Fixed to match schema
-    sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
-    sample_user_role = "Data Scientist"
-    sample_query = "What is machine learning and how does it work?"
-    
-    cursor = postgres_conn.cursor()
+    # Connect to Weaviate
     try:
-        # Check if user exists
-        cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (sample_user_id,))
-        if not cursor.fetchone():
-            print(f"🔧 Creating test user: {sample_user_id}")
-            
-            # Create user in users table
-            cursor.execute("""
-                INSERT INTO users (user_id, email, role, created_at, updated_at) 
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, (sample_user_id, "test@example.com", sample_user_role))
-            
-            # The trigger should auto-create progress, but let's verify it exists
-            cursor.execute("SELECT progress_id FROM progress WHERE user_id = %s", (sample_user_id,))
-            if not cursor.fetchone():
-                print(f"🔧 Creating progress record for user")
-                cursor.execute("""
-                    INSERT INTO progress (user_id, completed_modules, quiz_scores, interaction_log)
-                    VALUES (%s, '[]'::jsonb, '{}'::jsonb, '{"last_prompts": [], "recent_topics": [], "preferences": {}}'::jsonb)
-                """, (sample_user_id,))
-            
-            postgres_conn.commit()
-            print(f"✅ Test user created successfully")
-        else:
-            print(f"✅ Test user already exists")
-            # Verify progress record exists
-            cursor.execute("SELECT progress_id FROM progress WHERE user_id = %s", (sample_user_id,))
-            if not cursor.fetchone():
-                print(f"🔧 Creating missing progress record")
-                cursor.execute("""
-                    INSERT INTO progress (user_id, completed_modules, quiz_scores, interaction_log)
-                    VALUES (%s, '[]'::jsonb, '{}'::jsonb, '{"last_prompts": [], "recent_topics": [], "preferences": {}}'::jsonb)
-                """, (sample_user_id,))
-                postgres_conn.commit()
-            
-    except Exception as e:
-        print(f"❌ Error creating test user: {e}")
-        postgres_conn.rollback()
-        cursor.close()
-        postgres_conn.close()
-        return
-    finally:
-        cursor.close()
-
-    # Now continue with Weaviate connection
-    try:
-        weaviate_client = weaviate.connect_to_local()
-        print("✅ Weaviate connected successfully")
+        weaviate_client = weaviate.connect_to_local(
+            host="localhost",
+            port=8080,
+            headers={"X-OpenAI-Api-Key": OPENAI_API_KEY} if OPENAI_API_KEY else None
+        )
+        print("✅ Connected to Weaviate")
     except Exception as e:
         print(f"❌ Weaviate connection error: {e}")
-        if postgres_conn:
-            postgres_conn.close()
+        postgres_conn.close()
         return
 
+    # Initialize Gemini client (for main generation)
     try:
-        llm_client = OpenAI(api_key=OPENAI_API_KEY)
+        from google import genai
+        from google.genai import types
         
-        # Import and initialize other agents with fallback for standalone execution
+        gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
+        model = "gemini-2.5-pro"
+        
+        print(f"✅ Gemini client initialized (model: {model})")
+    except Exception as e:
+        print(f"❌ Gemini client error: {e}")
+        postgres_conn.close()
+        return
+
+    # Initialize OpenAI client
+    try:
+        from openai import OpenAI
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        print(f"✅ OpenAI client initialized (model: gpt-4)")
+    except Exception as e:
+        print(f"❌ OpenAI client error: {e}")
+        postgres_conn.close()
+        return
+
+    # Initialize SummaryAgent (needed for TrainerAgent)
+    try:
+        # Try relative import first, fallback to absolute
         try:
             from .summary_agent import SummaryAgent
         except ImportError:
             from summary_agent import SummaryAgent
         
-        summary = SummaryAgent(postgres_conn, llm_client)
+        summary_agent = SummaryAgent(postgres_conn, openai_client)
+        print("✅ SummaryAgent initialized")
+    except Exception as e:
+        print(f"❌ SummaryAgent initialization error: {e}")
+        postgres_conn.close()
+        return
 
-        # Initialize TrainerAgent
-        agent = TrainerAgent(postgres_conn, weaviate_client, summary, llm_client)
-
-        print("🧪 Testing Trainer Agent Functionality...")
-        print(f"User ID: {sample_user_id}")
-        print(f"User Role: {sample_user_role}")
-        print(f"Query: {sample_query}")
-        print("-" * 60)
-
-        # Test learning content generation
-        response = agent.generate_learning_content(
-            user_id=sample_user_id,
-            user_role=sample_user_role,
-            query=sample_query
+    # Initialize TrainerAgent (minimal - no Weaviate needed for this test)
+    try:
+        # Create a minimal TrainerAgent with required parameters
+        config = types.GenerateContentConfig()
+        grounding_tool = types.Tool(google_search=types.GoogleSearch())
+        
+        trainer = TrainerAgent(
+            postgres_client=postgres_conn,
+            weaviate_client=weaviate_client,
+            summary_agent=summary_agent,
+            llm_client=gemini_client,  # Gemini for main generation
+            llm_model=model,
+            config=config,
+            grounding_tool=grounding_tool,
+            openai_client=openai_client,  # 🔥 OpenAI for follow-up questions
+            openai_model="gpt-4"
         )
+        print("✅ TrainerAgent initialized")
+    except Exception as e:
+        print(f"❌ TrainerAgent initialization error: {e}")
+        postgres_conn.close()
+        return
 
-        print("✅ Learning content response generated:")
-        print(f"Response keys: {list(response.keys())}")
-        if "conversational_response" in response:
-            print(f"Response preview: {response['conversational_response'][:200]}...")
+    # Test data
+    test_user_id = "11cf9348-8507-4877-b324-d82eedf4c6b1"
+    test_user_role = "Sales"
+    
+    # =========================================================================
+    # TEST 1: List user's documents
+    # =========================================================================
+    print("\n" + "="*60)
+    print("TEST 1: Listing user's documents")
+    print("="*60)
+    
+    cursor = postgres_conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT document_id, filename, file_type, upload_date
+            FROM user_documents
+            WHERE user_id = %s
+            ORDER BY upload_date DESC
+        """, (test_user_id,))
         
-        # Test learning analytics
-        analytics = agent.get_learning_analytics(sample_user_id)
-        print(f"✅ Learning analytics: {analytics}")
+        documents = cursor.fetchall()
         
-        # Test progress update
-        progress_updated = agent.update_user_learning_progress(sample_user_id, "Machine Learning Basics")
-        print(f"✅ Progress update result: {progress_updated}")
-
-        print("🎉 Trainer agent test completed successfully!")
+        if not documents:
+            print("⚠️  No documents found for this user")
+            print("   Please upload some documents first using the UI")
+            cursor.close()
+            postgres_conn.close()
+            weaviate_client.close()
+            return
         
+        print(f"Found {len(documents)} document(s):\n")
+        for i, doc in enumerate(documents, 1):
+            doc_id, filename, file_type, upload_date = doc
+            print(f"   {i}. {filename} ({file_type})")
+            print(f"      ID: {doc_id}")
+            print(f"      Uploaded: {upload_date}\n")
+        
+    except Exception as e:
+        print(f"❌ Error listing documents: {e}")
+        cursor.close()
+        postgres_conn.close()
+        weaviate_client.close()
+        return
     finally:
-        # Cleanup connections
-        try:
-            if postgres_conn:
-                postgres_conn.close()
-                print("🔧 PostgreSQL connection closed")
-        except Exception as e:
-            print(f"Warning: Error closing PostgreSQL connection: {e}")
+        cursor.close()
+
+    print("\n" + "="*60)
+    print("DEBUG: Checking Weaviate UserDocument data")
+    print("="*60)
+
+    try:
+        # Check total count
+        result = (
+            weaviate_client.query
+            .aggregate("UserDocument")
+            .with_meta_count()
+            .do()
+        )
+        total_count = result["data"]["Aggregate"]["UserDocument"][0]["meta"]["count"]
+        print(f"Total UserDocument chunks in Weaviate: {total_count}")
         
-        try:
-            if weaviate_client:
-                weaviate_client.close()
-                print("🔧 Weaviate connection closed")
-        except Exception as e:
-            print(f"Warning: Error closing Weaviate connection: {e}")
+        # Get sample documents for our user
+        result = (
+            weaviate_client.query
+            .get("UserDocument", ["document_id", "filename", "chunk_index"])
+            .with_where({
+                "path": ["document_id"],
+                "operator": "Equal",
+                "valueText": selected_doc_ids[0]
+            })
+            .with_limit(5)
+            .do()
+        )
+        
+        if "data" in result and "Get" in result["data"]:
+            docs = result["data"]["Get"]["UserDocument"]
+            print(f"\nSample chunks for document {selected_doc_ids[0]}:")
+            for doc in docs:
+                print(f"   - {doc['filename']} (Chunk {doc['chunk_index']})")
+        else:
+            print(f"⚠️  No chunks found for document {selected_doc_ids[0]}")
+            print(f"   This means the document was NOT embedded into Weaviate!")
+            
+    except Exception as e:
+        print(f"❌ Error checking Weaviate data: {e}")
+
+    # =========================================================================
+    # TEST 2: Generate learning content WITH selected documents
+    # =========================================================================
+    print("\n" + "="*60)
+    print("TEST 2: Generate learning content WITH selected documents")
+    print("="*60)
+    
+    # Use the first document for testing
+    selected_doc_ids = [documents[0][0]]  # Take first document ID
+    test_query = "How can AI help with sales reporting?"
+    
+    print(f"   Query: {test_query}")
+    print(f"   Selected documents: {documents[0][1]}")  # Show filename
+    print(f"   Document IDs: {selected_doc_ids}\n")
+    
+    try:
+        result_with_docs = trainer.generate_learning_content(
+            user_id=test_user_id,
+            user_role=test_user_role,
+            query=test_query,
+            selected_document_ids=selected_doc_ids
+        )
+        
+        print("✅ Learning content generated WITH documents")
+        print("\n📝 Response preview:")
+        # response = result_with_docs.get("conversational_response", "")
+        print(result_with_docs[:500] + "..." if len(result_with_docs) > 500 else result_with_docs)
+        
+        # Check if document content was used
+        learning_content = result_with_docs.get("learning_content", [])
+        print(f"\n📚 Learning content sources: {len(learning_content)} item(s)")
+        for item in learning_content:
+            print(f"   - {item.get('title', 'Untitled')} (type: {item.get('type', 'unknown')})")
+        
+    except Exception as e:
+        print(f"❌ Error generating content with documents: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # =========================================================================
+    # TEST 3: Generate learning content WITHOUT selected documents (baseline)
+    # =========================================================================
+    print("\n" + "="*60)
+    print("TEST 3: Generate learning content WITHOUT selected documents (baseline)")
+    print("="*60)
+    
+    print(f"   Query: {test_query}")
+    print(f"   Selected documents: None\n")
+    
+    try:
+        result_without_docs = trainer.generate_learning_content(
+            user_id=test_user_id,
+            user_role=test_user_role,
+            query=test_query,
+            selected_document_ids=None
+        )
+        
+        print("✅ Learning content generated WITHOUT documents")
+        print("\n📝 Response preview:")
+        # response = result_without_docs.get("conversational_response", "")
+        print(result_without_docs[:500] + "..." if len(result_without_docs) > 500 else result_without_docs)
+        
+        # Check sources
+        learning_content = result_without_docs.get("learning_content", [])
+        print(f"\n📚 Learning content sources: {len(learning_content)} item(s)")
+        for item in learning_content:
+            print(f"   - {item.get('title', 'Untitled')} (type: {item.get('type', 'unknown')})")
+        
+    except Exception as e:
+        print(f"❌ Error generating content without documents: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

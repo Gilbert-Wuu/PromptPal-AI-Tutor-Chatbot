@@ -19,12 +19,19 @@ interface Document {
     upload_date: string;
 }
 
+// Add FollowUpQuestion interface
+interface FollowUpQuestion {
+    id: string;
+    text: string;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 const ChatComponent = () => {
     const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [followUpQuestions, setFollowUpQuestions] = useState<FollowUpQuestion[]>([]);
     const [inputValue, setInputValue] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading initially
     const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
@@ -199,6 +206,10 @@ const ChatComponent = () => {
         if (isWelcomeView) {
             setIsWelcomeView(false);
         }
+        
+        // Clear old suggestions and follow-ups immediately when user submits new query
+        setFollowUpQuestions([]);
+        setSuggestions([]);
 
         setIsLoading(true);
         setIsLoadingSuggestions(true);
@@ -217,10 +228,13 @@ const ChatComponent = () => {
                 user_role: user.role,
                 selected_documents: selectedDocIds.length > 0 ? selectedDocIds : undefined,
             });
-            const { answer, suggestions: newSuggestions, learning_options: learningOptions } = response.data;
+            const { answer, suggestions: newSuggestions, learning_options: learningOptions, follow_up_questions } = response.data;
 
             // Add portal's response and update suggestions
             setMessages(prev => [...prev, { sender: 'portal', content: answer }]);
+            
+            // Set follow-up questions
+            setFollowUpQuestions(follow_up_questions || []);
             
             // Extract suggestion texts (handle both formats)
             let suggestionTexts: string[] = [];
@@ -283,6 +297,7 @@ const ChatComponent = () => {
         }
         setMessages([]);
         setSuggestions([]);
+        setFollowUpQuestions([]);
         setSelectedDocIds([]);
         hasInitialized.current = false;
         setIsWelcomeView(true); // Return to welcome view
@@ -407,7 +422,25 @@ const ChatComponent = () => {
                 <div ref={chatEndRef} />
             </div>
 
-            {/* Suggestions above input */}
+            {/* Follow-up Questions Section */}
+            {followUpQuestions.length > 0 && (
+                <div className={styles.followUpSection}>
+                    <h3 className={styles.followUpHeader}>💡 Want to learn more about this topic?</h3>
+                    <div className={styles.followUpButtons}>
+                        {followUpQuestions.map((q) => (
+                            <button 
+                                key={q.id} 
+                                onClick={() => handleSubmitQuery(q.text)} 
+                                className={styles.followUpButton}
+                            >
+                                {q.text}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Regular Suggestions (New Topics) */}
             {suggestions.length > 0 && (
                 <div className={styles.conversationSuggestionsContainer}>
                     <div className={styles.suggestionsHeaderRow}>

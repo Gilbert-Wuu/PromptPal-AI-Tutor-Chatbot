@@ -412,6 +412,60 @@
     font-size: 0.9rem;
 }
 
+/* Container for follow-up questions section */
+.followUpSection {
+    padding: 1.5rem 2rem 2rem;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Header text "Want to learn more about this topic?" */
+.followUpHeader {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #1e3a8a; /* Dark blue - matches conversationSuggestionsHeader */
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+/* Container for follow-up question buttons */
+.followUpButtons {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+}
+
+/* Individual follow-up question button - matches conversationSuggestionButton style */
+.followUpButton {
+    padding: 1rem 2rem;
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 40px;
+    color: #1e3a8a;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    width: auto;
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+}
+
+/* Follow-up button hover effect - matches conversationSuggestionButton */
+.followUpButton:hover {
+    background: white;
+    border-color: rgba(255, 255, 255, 0.9);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
 /* ================================
    INPUT AREA - Bottom input section in conversation view
    ================================ */
