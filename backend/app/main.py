@@ -60,7 +60,7 @@ llm_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize agents (handle case where Weaviate might not be available)
 summary = summary_agent.SummaryAgent(postgres_conn, llm_client)
-trainer = trainer_agent.TrainerAgent(postgres_client=postgres_conn, weaviate_client=weaviate_client, summary_agent=summary, llm_client=client, llm_model=model, config=config, grounding_tool=grounding_tool) if weaviate_client else None
+trainer = trainer_agent.TrainerAgent(postgres_client=postgres_conn, weaviate_client=weaviate_client, summary_agent=summary, llm_client=client, llm_model=model, config=config, grounding_tool=grounding_tool, openai_client=llm_client) if weaviate_client else None
 navigator = navigator_agent.NavigatorAgent(llm_client, summary, weaviate_client) if weaviate_client else None
 assessment = assessment_agent.AssessmentAgent(llm_client, postgres_conn)
 doc_agent = document_agent.DocumentAgent(weaviate_client, postgres_conn, llm_client) if weaviate_client else None
@@ -75,66 +75,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.get("/api/summary/{user_id}")
-async def get_summary(user_id: str):
-    try:
-        long_term_summary = summary.get_long_term_summary(user_id)
-        short_term_summary = summary.get_short_term_summary(user_id)
-        return {"long_term_summary": long_term_summary, "short_term_summary": short_term_summary}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/train")
-async def train_agent(data: dict):
-    try:
-        if not trainer:
-            raise HTTPException(status_code=503, detail="Trainer service is unavailable (Weaviate not connected)")
-        
-        response = trainer.generate_learning_content(
-            user_id=data.get("user_id"),
-            user_role=data.get("user_role"),
-            query=data.get("query")
-        )
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/assessment")
-async def generate_assessment(data: dict):
-    try:
-        user_id = data.get("user_id")
-        topic = data.get("topic")
-        response = await assessment.create_quiz(topic, assessment.getModules(user_id))
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/navigate")
-async def navigate_learning(data: dict):
-    try:
-        if not navigator:
-            raise HTTPException(status_code=503, detail="Navigator service is unavailable (Weaviate not connected)")
-        
-        user_id = data.get("user_id")
-        user_role = data.get("user_role")
-        completed_modules = data.get("completed_modules", [])
-
-        # Get raw navigator suggestions
-        options = navigator.get_next_learning_options(
-            user_id=user_id,
-            user_role=user_role,
-            completed_modules=completed_modules
-        )
-
-        # 💡 Format suggestions with "using AI"
-        formatted = [f"How to {opt.lower()} using AI?" for opt in options]
-
-        return {"next_steps": formatted}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================
 # REQUEST/RESPONSE MODELS
@@ -293,11 +233,13 @@ async def chat(data: ChatRequest):
         user_id = data.user_id
         user_role = data.user_role
         is_initial = data.is_initial  # Frontend flag for initial request
+        selected_documents = data.selected_documents
 
         if not trainer:
             raise HTTPException(status_code=503, detail="Trainer agent not available")
         
         print(f"Chat request - User: {user_id}, Initial: {is_initial}, Query: {content[:50] if content else 'None'}...")
+        print(f"Selected documents: {selected_documents}")
         
         # Case 1: Initial request (no content), return learning options only
         if is_initial or not content:
@@ -335,8 +277,8 @@ async def chat(data: ChatRequest):
                 return {
                     "answer": "Welcome! Please select a learning topic or enter your own question.",
                     "learning_options": learning_options,
-                    "suggestions": [],
-                    "sources": []
+                    "follow_up_questions": [], 
+                    "new_topic_suggestions": []
                 }
                 
             except Exception as e:
@@ -368,9 +310,6 @@ async def chat(data: ChatRequest):
         # Case 2: User has selected an option or entered content
         print("Generating lesson with Trainer Agent...")
         
-        # Check if user has selected documents
-        selected_documents = data.selected_documents
-        
         # Step 1: Use Trainer Agent to generate learning content
         trainer_response = trainer.generate_learning_content(
             user_id=user_id,
@@ -382,12 +321,32 @@ async def chat(data: ChatRequest):
         lesson = trainer_response
         
         print(f"Lesson generated")
-        
-        # Step 2: Get next suggestions from Navigator
-        suggestions = []
+
+        # Step 2a: Generate follow-up questions (dive deeper)
+        follow_up_questions = []
         try:
-            print("Getting next suggestions from Navigator...")
-            
+            print("Generating follow-up questions...")
+            follow_up_questions = trainer.generate_follow_up_questions(
+                user_id=user_id,
+                user_role=user_role,
+                current_topic=content,
+                lesson_content=lesson
+            )
+            print(f"Generated {len(follow_up_questions)} follow-up questions")
+        except Exception as e:
+            print(f"Error generating follow-ups: {e}")
+            # Fallback
+            follow_up_questions = [
+                {"id": "followup_1", "text": "Can you explain this concept in more detail?"},
+                {"id": "followup_2", "text": "What are common mistakes to avoid?"},
+                {"id": "followup_3", "text": "How can I apply this in practice?"}
+            ]
+        
+        # Step 2b: Get new topic suggestions from Navigator
+        new_topic_suggestions = []
+        try:
+            print("Getting new topic suggestions from Navigator...")
+
             cursor = postgres_conn.cursor()
             cursor.execute(
                 "SELECT completed_modules FROM progress WHERE user_id = %s",
@@ -405,33 +364,26 @@ async def chat(data: ChatRequest):
             )
             
             # Format as suggestions (simple string format)
-            suggestions = [
-                {
-                    "id": f"suggestion_{i}",
-                    "text": opt
-                }
+            new_topic_suggestions = [
+                {"id": f"newtopic_{i}", "text": opt}
                 for i, opt in enumerate(next_options, 1)
             ]
-            
-            print(f"Got {len(suggestions)} suggestions")
-            
+
+            print(f"Got {len(new_topic_suggestions)} suggestions")
+
         except Exception as e:
             print(f"Error getting suggestions: {e}")
-            import traceback
-            traceback.print_exc()
-            
             # Fallback suggestions
-            suggestions = [
-                {"id": "suggestion_1", "text": "Continue learning this topic in depth"},
-                {"id": "suggestion_2", "text": "Take a quiz to test understanding"},
-                {"id": "suggestion_3", "text": "Explore related practical applications"}
+            new_topic_suggestions = [
+                {"id": "newtopic_1", "text": "Explore another AI application"},
+                {"id": "newtopic_2", "text": "Learn a different AI concept"}
             ]
         
-        
         return {
-            "answer": lesson,                    # Lesson content from Trainer (string)
-            "suggestions": suggestions,          # Next step suggestions from Navigator (list of dicts with id & text)
-            "learning_options": []               # Only present in initial request
+            "answer": lesson,                              # Lesson content from Trainer (string)
+            "follow_up_questions": follow_up_questions,    # Follow-up questions from Trainer (list of dicts with id & text)
+            "suggestions": new_topic_suggestions,          # Next step suggestions from Navigator (list of dicts with id & text)
+            "learning_options": []                         # Only present in initial request
         }
         
     except HTTPException:
@@ -536,26 +488,4 @@ async def delete_document(document_id: str, user_id: str = None):
         raise
     except Exception as e:
         print(f"Delete error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/documents/query")
-async def query_documents(data: dict):
-    """Query user's documents using RAG"""
-    try:
-        user_id = data.get("user_id")
-        query = data.get("query")
-        limit = data.get("limit", 5)
-        
-        if not all([user_id, query]):
-            raise HTTPException(status_code=400, detail="Missing user_id or query")
-        
-        if not doc_agent:
-            raise HTTPException(status_code=503, detail="Document service is unavailable (Weaviate not connected)")
-        
-        result = doc_agent.query_documents(user_id, query, limit)
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
