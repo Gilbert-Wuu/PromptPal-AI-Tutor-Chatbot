@@ -172,6 +172,35 @@ except Exception as e:
     print(f"✗ Error: {e}")
 
 # ============================================
+# Create UserDocument Collection
+# ============================================
+print("\nCreating UserDocument collection...")
+
+try:
+    if weaviate_client.collections.exists("UserDocument"):
+        weaviate_client.collections.delete("UserDocument")
+        print("  Deleted existing UserDocument")
+
+    weaviate_client.collections.create(
+        name="UserDocument",
+        vectorizer_config=Configure.Vectorizer.text2vec_openai(
+            model=EMBEDDING_MODEL
+        ),
+        properties=[
+            Property(name="user_id", data_type=DataType.TEXT),
+            Property(name="document_id", data_type=DataType.TEXT),
+            Property(name="filename", data_type=DataType.TEXT),
+            Property(name="chunk_text", data_type=DataType.TEXT),
+            Property(name="chunk_index", data_type=DataType.INT),
+            Property(name="upload_date", data_type=DataType.DATE),
+        ]
+    )
+    print("✓ UserDocument collection created")
+
+except Exception as e:
+    print(f"✗ Error: {e}")
+
+# ============================================
 # Summary
 # ============================================
 print("\n" + "=" * 60)
