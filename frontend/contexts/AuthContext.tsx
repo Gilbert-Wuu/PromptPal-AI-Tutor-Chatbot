@@ -7,6 +7,7 @@ interface User {
     user_id: string;
     email: string;
     role: string;
+    prompts?: string[];
 }
 
 interface AuthContextType {
@@ -51,7 +52,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const login = async (email: string): Promise<{ success: boolean; error?: string }> => {
         try {
             const response = await axios.post(`${API_BASE_URL}/auth/login`, { email });
-            persistSession(response.data.user, response.data.session_token);
+            const userData = {
+                ...response.data.user,
+                prompts: response.data.prompts || []
+            };
+            persistSession(userData, response.data.session_token);
             return { success: true };
         } catch (error: any) {
             const errorMessage = error.response?.data?.detail || 'Login failed';
@@ -62,7 +67,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const signUp = async (email: string, role: string): Promise<{ success: boolean; error?: string }> => {
         try {
             const response = await axios.post(`${API_BASE_URL}/auth/signup`, { email, role });
-            persistSession(response.data.user, response.data.session_token);
+            const userData = {
+                ...response.data.user,
+                prompts: response.data.prompts || []
+            };
+            persistSession(userData, response.data.session_token);
             return { success: true };
         } catch (error: any) {
             const errorMessage = error.response?.data?.detail || 'Signup failed';
