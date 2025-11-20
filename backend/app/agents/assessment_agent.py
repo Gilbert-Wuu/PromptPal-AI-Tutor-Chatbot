@@ -75,10 +75,11 @@ class AssessmentAgent:
             print(f"Failed to extract text from LLM response: {e}")
             return None
 
-    async def create_quiz(self, topic: str, modules: str) -> dict | None:
+    async def create_quiz(self, topic: str, modules: str, user_id: str) -> dict | None:
         """
         Generates a 5-question multiple-choice quiz on a given topic.
         """
+        user_context = self.get_user_context(user_id)
         # 1. Construct the prompt with strict JSON output instructions
         prompt = (
             f"You are a quiz generation assistant. Your task is to create a 5-question multiple-choice quiz.\n\n"
@@ -86,6 +87,8 @@ class AssessmentAgent:
             f"{topic}\n\n"
             "Previous Modules that the test taker has completed:\n"
             f"{modules}\n"
+            "Here is the business role of the test taker at Federated Hermes, an investment management fund: \n"
+            f"{user_context}\n"
             "Instructions:\n"
             "- The quiz must have exactly 5 questions.\n"
             "- Each question must have 4 options (a, b, c, d).\n"
@@ -154,6 +157,38 @@ class AssessmentAgent:
         except Exception as e:
             print(f"❌ Failed to retrieve modules for user {user_id}: {e}")
             return ""
+
+
+    def get_user_context(self, user_id: str) -> str:
+        """
+        Retrieves the user's role and long-term summary from PostgreSQL.
+        Returns a formatted string with role and summary (if available).
+        """
+        try:
+            with self.pg_conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT u.role, u.long_term_summary FROM users u WHERE u.user_id = %s",
+                    (user_id,)
+                )
+                row = cursor.fetchone()
+
+                if not row:
+                    print(f"⚠️ No user found with user_id: {user_id}")
+                    return "Unknown role"
+
+                role = row[0] if row[0] else "Unknown role"
+                long_term_summary = row[1] if row[1] else None
+
+                # Format the context
+                context = f"Role: {role}"
+                if long_term_summary:
+                    context += f"\n\nLearning Progress Summary:\n{long_term_summary}"
+
+                return context
+
+        except Exception as e:
+            print(f"❌ Failed to retrieve user context for user {user_id}: {e}")
+            return "Unknown role"
 
 
 def main():

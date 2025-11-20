@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import axios from 'axios';
 import styles from './QuizComponent.module.css';
 
@@ -33,19 +33,42 @@ const QuizComponent = () => {
     const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
     const [quizState, setQuizState] = useState<'topic_selection' | 'loading' | 'in_progress' | 'results'>('topic_selection');
     const [score, setScore] = useState<number>(0);
+    const [userId, setUserId] = useState<string | null>(null);
+    const SESSION_TOKEN_KEY = 'session_token';
+
+    useEffect(() => {
+        const loadCurrentUser = async () => {
+            const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
+            if (!sessionToken) return;
+            try {
+                const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+                    headers: {Authorization: `Bearer ${sessionToken}`}
+                });
+                setUserId(response.data.user_id);
+            } catch (error) {
+                console.error('Failed to resolve current user:', error);
+            }
+        };
+        loadCurrentUser();
+    }, []);
 
     // Fetch topics when the component mounts
     useEffect(() => {
-        const fetchTopics = async () => {
-            try {
-                const response = await axios.get(`${API_BASE_URL}/topics/`);
-                setTopics(response.data);
-            } catch (error) {
-                console.error("Failed to fetch topics:", error);
-            }
-        };
-        fetchTopics();
-    }, []);
+        if (userId) {
+            const fetchTopics = async () => {
+                try {
+                    const response = await axios.get(`${API_BASE_URL}/topics/`, {
+                        params: {user_id: userId}
+                    });
+                    setTopics(response.data);
+                } catch (error) {
+                    console.error("Failed to fetch topics:", error);
+                }
+            };
+            fetchTopics();
+        }
+    }, [userId]);  // Add userId as dependency
+
 
     const handleStartQuiz = async () => {
         if (!selectedTopic) return;
@@ -55,7 +78,7 @@ const QuizComponent = () => {
             // In a real app, you'd call your `/assessment/start` endpoint.
             const response = await axios.post(`${API_BASE_URL}/api/assessment`, {
                 topic: selectedTopic,
-                user_id: "07c813e7-987a-47bf-a284-d51283754760"
+                user_id: userId
             });
             if (response.data && response.data.questions) {
                 setQuizData(response.data);
@@ -72,12 +95,27 @@ const QuizComponent = () => {
     };
 
     const handleAnswerSelect = (questionIndex: number, answer: string) => {
-        setUserAnswers({ ...userAnswers, [questionIndex]: answer });
+        setUserAnswers({...userAnswers, [questionIndex]: answer});
     };
+
+    const updateQuizScore = async (finalScore: number) => {
+        try {
+            await axios.post(`${API_BASE_URL}/api/quiz/score`, {
+                user_id: userId,
+                topic: selectedTopic,
+                score: finalScore,
+                total_questions: quizData!.questions.length
+            });
+        } catch (error) {
+            console.error("Failed to update quiz score:", error);
+        }
+    };
+
 
     const handleNextQuestion = () => {
         if (currentQuestionIndex < quizData!.questions.length - 1) {
             setCurrentQuestionIndex(currentQuestionIndex + 1);
+
         } else {
             // End of quiz, calculate score and show results
             let finalScore = 0;
@@ -88,6 +126,10 @@ const QuizComponent = () => {
             });
             setScore(finalScore);
             setQuizState('results');
+
+            if (userId) {
+                updateQuizScore(finalScore);
+            }
         }
     };
 
@@ -104,7 +146,9 @@ const QuizComponent = () => {
     // --- Render different views based on the quiz state ---
 
     if (quizState === 'loading') {
-        return <div className={styles.container}><div className={styles.loader}></div><p>Generating your quiz...</p></div>;
+        return <div className={styles.container}>
+            <div className={styles.loader}></div>
+            <p>Generating your quiz...</p></div>;
     }
 
     if (quizState === 'results') {
@@ -136,7 +180,8 @@ const QuizComponent = () => {
         return (
             <div className={styles.container}>
                 <h2>{quizData.topic} Quiz</h2>
-                <div className={styles.progress}>Question {currentQuestionIndex + 1} of {quizData.questions.length}</div>
+                <div
+                    className={styles.progress}>Question {currentQuestionIndex + 1} of {quizData.questions.length}</div>
                 <p className={styles.questionText}>{currentQuestion.question_text}</p>
                 <div className={styles.options}>
                     {Object.entries(currentQuestion.options).map(([key, value]) => (
@@ -149,7 +194,8 @@ const QuizComponent = () => {
                         </button>
                     ))}
                 </div>
-                <button onClick={handleNextQuestion} disabled={!userAnswers[currentQuestionIndex]} className={styles.button}>
+                <button onClick={handleNextQuestion} disabled={!userAnswers[currentQuestionIndex]}
+                        className={styles.button}>
                     {currentQuestionIndex === quizData.questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
                 </button>
             </div>
