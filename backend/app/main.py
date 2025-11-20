@@ -243,36 +243,35 @@ async def chat(data: ChatRequest):
         
         # Case 1: Initial request (no content), return learning options only
         if is_initial or not content:
-            print("Initial request - Getting learning options from Navigator...")
+            print("Initial request - Getting predefined tasks for role...")
             
             try:
                 # Get user's completed modules
                 cursor = postgres_conn.cursor()
                 cursor.execute(
-                    "SELECT completed_modules FROM progress WHERE user_id = %s",
-                    (user_id,)
+                    """
+                    SELECT id, role_name, task
+                    FROM role_tasks
+                    WHERE role_name = %s
+                    ORDER BY id
+                    """,
+                    (user_role,)
                 )
-                result = cursor.fetchone()
-                completed_modules = result[0] if result and result[0] else []
+                tasks = cursor.fetchall()
                 cursor.close()
                 
-                # Get learning options from Navigator (returns list of strings)
-                options = navigator.get_next_learning_options(
-                    user_id=user_id,
-                    user_role=user_role,
-                    completed_modules=completed_modules
-                )
-                
                 # Format for frontend
-                learning_options = [
-                    {
-                        "id": f"option_{i}",
-                        "title": opt,
-                    }
-                    for i, opt in enumerate(options, 1)
-                ]
-                
-                print(f"Got {len(learning_options)} learning options")
+                learning_options = []
+
+                if tasks:
+                    learning_options = [
+                        {
+                            "id": f"task_{task[0]}",  # task[0] = id
+                            "title": task[2],          # task[2] = task description
+                        }
+                        for task in tasks
+                    ]
+                    print(f"✅ Found {len(learning_options)} predefined tasks for {user_role}")
                 
                 return {
                     "answer": "Welcome! Please select a learning topic or enter your own question.",
