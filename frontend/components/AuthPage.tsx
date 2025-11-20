@@ -4,6 +4,18 @@ import { useState } from 'react';
 import styles from './AuthPage.module.css';
 import { useAuth } from '../contexts/AuthContext';
 
+// Available role options
+const ROLE_OPTIONS = [
+    'Executive Assistant',
+    'Compliance Analyst',
+    'Client Service Associate',
+    'Marketing Associate',
+    'Operations Associate',
+    'HR Coordinator',
+    'Investor Relations Coordinator',
+    'Administrative Assistant'
+];
+
 const AuthPage = () => {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
@@ -79,15 +91,20 @@ const AuthPage = () => {
                             <label htmlFor="role" className={styles.label}>
                                 Role
                             </label>
-                            <input
+                            <select
                                 id="role"
-                                type="text"
                                 value={role}
                                 onChange={(e) => setRole(e.target.value)}
-                                placeholder="e.g., Student, Teacher, Analyst..."
                                 className={styles.input}
                                 required
-                            />
+                            >
+                                <option value="">Select your role...</option>
+                                {ROLE_OPTIONS.map((roleOption) => (
+                                    <option key={roleOption} value={roleOption}>
+                                        {roleOption}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     )}
 

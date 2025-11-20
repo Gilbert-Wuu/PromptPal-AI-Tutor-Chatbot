@@ -30,11 +30,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 // Fixed prompts for "Learn AI Fundamentals" tab
 const LEARNING_FUNDAMENTALS_PROMPTS = [
     "What is a prompt?",
-    "What kinds of AI knowledge we have",
     "How to write effective prompts",
-    "What is Artificial Intelligence?",
     "Prompt engineering best practices",
-    "Understanding Large Language Models"
+    "AI safety and privacy"
 ];
 
 const ChatComponent = () => {
