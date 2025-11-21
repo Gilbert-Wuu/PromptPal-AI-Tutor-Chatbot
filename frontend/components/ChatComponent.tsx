@@ -52,6 +52,16 @@ const ChatComponent = () => {
     const docSelectorRef = useRef<HTMLDivElement>(null); // Ref for document selector popup
     const hasInitialized = useRef<boolean>(false);
 
+    // On initial load, set suggestions from AuthContext if available
+    useEffect(() => {
+        if (user?.prompts && user.prompts.length > 0 && !hasInitialized.current) {
+            setSuggestions(user.prompts);
+            setIsLoading(false);
+            setIsWelcomeView(true); // Ensure we start in the welcome view
+            hasInitialized.current = true;
+        }
+    }, [user]);
+
     // Load chat history from localStorage on mount
     useEffect(() => {
         if (!user?.user_id) return;
@@ -135,6 +145,12 @@ const ChatComponent = () => {
     // Initial message to welcome the user and get first suggestions
     useEffect(() => {
         const fetchInitialGreeting = async () => {
+            // Exit if we already have suggestions from AuthContext or if already initialized
+            if (hasInitialized.current || (user?.prompts && user.prompts.length > 0)) {
+                setIsLoading(false);
+                return;
+            }
+
             if (!user?.user_id || !user?.role) {
                 setMessages([{ sender: 'portal', content: "Please log in to start chatting." }]);
                 setIsLoading(false);

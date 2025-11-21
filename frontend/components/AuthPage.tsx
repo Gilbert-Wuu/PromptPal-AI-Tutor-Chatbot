@@ -13,7 +13,13 @@ const ROLE_OPTIONS = [
     'Operations Associate',
     'HR Coordinator',
     'Investor Relations Coordinator',
-    'Administrative Assistant'
+    'Administrative Assistant',
+    'Project Coordinator',
+    'Product Specialist',
+    'Portfolio Operations Assistant',
+    'Communications Specialist',
+    'Training & Development Associate',
+    'Sales Representative'
 ];
 
 const AuthPage = () => {

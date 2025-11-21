@@ -1,8 +1,9 @@
+import json
 from datetime import datetime, timedelta
 import uuid
 import jwt
 
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from psycopg2._json import Json
@@ -78,7 +79,7 @@ app = FastAPI()
 # CORS Middleware - Allow frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Frontend URLs
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -231,7 +232,7 @@ async def login(data: LoginRequest):
 
         cursor = postgres_conn.cursor()
         cursor.execute(
-            "SELECT user_id, email, role, created_at FROM users WHERE email = %s",
+            "SELECT user_id, email, role, created_at, prompts FROM users WHERE email = %s",
             (email,)
         )
         user = cursor.fetchone()
@@ -250,6 +251,12 @@ async def login(data: LoginRequest):
         cursor.close()
         session_token = create_session_token(str(user[0]))
 
+        # Return cached prompts if available, else use hardcoded prompts
+        prompts = user[4] if user[4] else [
+            "What is prompt engineering?",
+            "How can AI help in my role?",
+            "Show me practical AI use cases."
+        ]
         return {
             "success": True,
             "user": {
@@ -258,6 +265,7 @@ async def login(data: LoginRequest):
                 "role": user[2],
                 "created_at": user[3].isoformat()
             },
+            "prompts": prompts,
             "session_token": session_token
         }
     except HTTPException:
@@ -355,6 +363,56 @@ def resolve_user_from_token(token: str) -> str:
     return row[0]
 
 
+def cache_prompts_task(user_id: str):
+    """The actual task of generating and caching prompts."""
+    try:
+        print(f"Starting prompt caching task for user: {user_id}")
+        
+        # Fetch user role and completed modules for the navigator
+        cursor = postgres_conn.cursor()
+        cursor.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
+        user_role_result = cursor.fetchone()
+        cursor.execute("SELECT completed_modules FROM progress WHERE user_id = %s", (user_id,))
+        progress_result = cursor.fetchone()
+        cursor.close()
+
+        user_role = user_role_result[0] if user_role_result else "Engineer"
+        completed_modules = progress_result[0] if progress_result and progress_result[0] else []
+
+        if not navigator:
+            print("Navigator agent not available, cannot generate prompts.")
+            return
+
+        # Use Navigator Agent to generate next prompts
+        new_prompts = navigator.get_next_learning_options(
+            user_id=user_id,
+            user_role=user_role,
+            completed_modules=completed_modules
+        )
+
+        # Save prompts to the database
+        if new_prompts:
+            cursor = postgres_conn.cursor()
+            # Use json.dumps to store the list as a JSON string/object
+            cursor.execute("UPDATE users SET prompts = %s WHERE user_id = %s", (json.dumps(new_prompts), user_id))
+            postgres_conn.commit()
+            cursor.close()
+            print(f"Successfully cached {len(new_prompts)} prompts for user {user_id}.")
+        else:
+            print(f"Navigator agent returned no new prompts for user {user_id}.")
+
+    except Exception as e:
+        print(f"Error in prompt caching background task for user {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
+
+@app.post("/cache-prompts/")
+async def trigger_cache_prompts(background_tasks: BackgroundTasks, user_id: str):
+    """Endpoint to trigger the asynchronous prompt caching task."""
+    background_tasks.add_task(cache_prompts_task, user_id)
+    return {"message": "Prompt caching task has been scheduled."}
+
+
 @app.get("/auth/me")
 async def auth_me(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -369,7 +427,7 @@ async def auth_me(authorization: Optional[str] = Header(None)):
 # ============================================
 
 @app.post("/chat/")
-async def chat(data: ChatRequest):
+async def chat(data: ChatRequest, background_tasks: BackgroundTasks):
     """Handle chat requests - integrate Trainer Agent and Navigator Agent"""
     try:
         content = data.content  # User's query or selected option
@@ -452,6 +510,7 @@ async def chat(data: ChatRequest):
         # Case 2: User has selected an option or entered content
         print("Generating lesson with Trainer Agent...")
 
+
         # Step 1: Use Trainer Agent to generate learning content
         trainer_response = trainer.generate_learning_content(
             user_id=user_id,
@@ -460,9 +519,24 @@ async def chat(data: ChatRequest):
             selected_document_ids=selected_documents
         )
 
+
         lesson = trainer_response
 
+
         print(f"Lesson generated")
+
+        # --- NEW: Save user message to interactions table ---
+        try:
+            cursor = postgres_conn.cursor()
+            cursor.execute(
+                "INSERT INTO interactions (user_id, log, timestamp) VALUES (%s, %s, NOW())",
+                (user_id, content)
+            )
+            postgres_conn.commit()
+            cursor.close()
+            print("Saved user message to interactions table.")
+        except Exception as e:
+            print(f"Error saving user message to interactions: {e}")
 
         # Step 2a: Generate follow-up questions (dive deeper)
         follow_up_questions = []
@@ -520,6 +594,9 @@ async def chat(data: ChatRequest):
                 {"id": "newtopic_1", "text": "Explore another AI application"},
                 {"id": "newtopic_2", "text": "Learn a different AI concept"}
             ]
+
+        # Enqueue background task to cache new prompts
+        background_tasks.add_task(cache_prompts_task, user_id)
 
         return {
             "answer": lesson,                              # Lesson content from Trainer (string)
