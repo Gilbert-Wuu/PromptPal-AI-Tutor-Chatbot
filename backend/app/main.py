@@ -598,6 +598,24 @@ async def chat(data: ChatRequest, background_tasks: BackgroundTasks):
         # Enqueue background task to cache new prompts
         background_tasks.add_task(cache_prompts_task, user_id)
 
+        # Save completed module
+        try:
+            module_result = summary.save_completed_module(
+                user_id=user_id,
+                user_query=content,
+                similarity_threshold=0.75
+            )
+
+            if module_result["success"]:
+                print(f"✅ Module saved: {module_result['topic']}")
+            elif module_result.get("skipped"):
+                print(f"⚠️ Module skipped (duplicate): {module_result['topic']}")
+            else:
+                print(f"❌ Module save failed: {module_result['message']}")
+
+        except Exception as e:
+            print(f"Error saving module: {e}")
+
         return {
             "answer": lesson,                              # Lesson content from Trainer (string)
             "follow_up_questions": follow_up_questions,    # Follow-up questions from Trainer (list of dicts with id & text)

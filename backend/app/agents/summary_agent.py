@@ -189,6 +189,126 @@ class SummaryAgent:
             logging.error(f"Failed to extract text from LLM response: {e}")
             return None
 
+    def _embed_topic(self, topic):
+        """Generate embedding for a topic using OpenAI's embedding model."""
+        try:
+            response = self.llm_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=topic
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logging.error(f"Failed to embed topic: {e}")
+            return None
+
+    def _calculate_cosine_similarity(self, vec1, vec2):
+        """Calculate cosine similarity between two vectors."""
+        try:
+            import numpy as np
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            dot_product = np.dot(vec1, vec2)
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            return dot_product / (norm1 * norm2) if (norm1 * norm2) > 0 else 0.0
+        except Exception as e:
+            logging.error(f"Cosine similarity calculation failed: {e}")
+            return 0.0
+
+    def _is_topic_unique(self, new_topic_embedding, existing_modules, similarity_threshold=0.75):
+        """Check if topic is semantically unique compared to existing modules."""
+        if not existing_modules or not new_topic_embedding:
+            return True
+
+        for module in existing_modules:
+            module_embedding = self._embed_topic(module)
+            if not module_embedding:
+                continue
+
+            similarity = self._calculate_cosine_similarity(new_topic_embedding, module_embedding)
+            logging.info(f"Similarity between new topic and '{module}': {similarity:.3f}")
+
+            if similarity >= similarity_threshold:
+                logging.info(f"Topic too similar to existing module: {module}")
+                return False
+
+        return True
+
+    def save_completed_module(self, user_id, user_query, similarity_threshold=0.75):
+        """
+        Save user's query to completed_modules if semantically unique.
+
+        Args:
+            user_id: User identifier
+            user_query: The actual user query/topic to save
+            similarity_threshold: Threshold for semantic similarity (0.75 = 75% similar)
+
+        Returns:
+            dict with success status and message
+        """
+        try:
+            if not user_query or not user_query.strip():
+                return {
+                    "success": False,
+                    "message": "Empty query provided"
+                }
+
+            # Clean the query
+            cleaned_query = user_query.strip()
+
+            logging.info(f"Attempting to save query: {cleaned_query}")
+
+            # Step 1: Get existing modules
+            with self.pg_conn.cursor() as cur:
+                cur.execute(
+                    "SELECT completed_modules FROM progress WHERE user_id = %s",
+                    (user_id,)
+                )
+                result = cur.fetchone()
+                existing_modules = result[0] if result and result[0] else []
+
+            # Step 2: Check semantic uniqueness
+            query_embedding = self._embed_topic(cleaned_query)
+            if not query_embedding:
+                return {
+                    "success": False,
+                    "message": "Failed to generate query embedding"
+                }
+
+            if not self._is_topic_unique(query_embedding, existing_modules, similarity_threshold):
+                return {
+                    "success": False,
+                    "message": f"Query '{cleaned_query}' is too similar to existing modules",
+                    "topic": cleaned_query,
+                    "skipped": True
+                }
+
+            # Step 3: Add new module
+            from psycopg2.extras import Json
+            updated_modules = existing_modules + [cleaned_query]
+
+            with self.pg_conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE progress SET completed_modules = %s WHERE user_id = %s",
+                    (Json(updated_modules), user_id)
+                )
+                self.pg_conn.commit()
+
+            logging.info(f"Added new module: {cleaned_query}")
+            return {
+                "success": True,
+                "message": "Module added successfully",
+                "topic": cleaned_query,
+                "total_modules": len(updated_modules)
+            }
+
+        except Exception as e:
+            logging.error(f"Failed to save completed module: {e}")
+            self.pg_conn.rollback()
+            return {
+                "success": False,
+                "message": f"Error: {str(e)}"
+            }
 
     def _fetch_long_term_summary(self, user_id):
         try:
@@ -234,7 +354,7 @@ class SummaryAgent:
 def main():
     if 'OPENAI_API_KEY' in os.environ:
         del os.environ['OPENAI_API_KEY']
-        
+
     dotenv.load_dotenv()
 
     # Set up environment variables
