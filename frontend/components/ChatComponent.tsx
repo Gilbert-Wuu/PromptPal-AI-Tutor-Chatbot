@@ -27,12 +27,13 @@ interface FollowUpQuestion {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-// Fixed prompts for "Learn AI Fundamentals" tab
+// Fixed prompts for "Learn AI Fundamentals" tab - Based on FHI Prompt Engineering Guide
 const LEARNING_FUNDAMENTALS_PROMPTS = [
-    "What is a prompt?",
-    "How to write effective prompts",
-    "Prompt engineering best practices",
-    "AI safety and privacy"
+    "What is prompt engineering?",
+    "How to write clear prompts?",
+    "When to use Copilot or other AI tools?",
+    "Key principles for AI use...",
+    "Comparing good and bad prompts..."
 ];
 
 const ChatComponent = () => {
@@ -90,9 +91,44 @@ const ChatComponent = () => {
             setMessages([]);
             setSuggestions([]);
             setSelectedDocIds([]);
+            setFollowUpQuestions([]);
             setIsWelcomeView(true);
             hasInitialized.current = false;
             setIsLoading(true);
+            
+            // Reload suggestions when returning to welcome view
+            if (user?.prompts && user.prompts.length > 0) {
+                // Reload from user context if available
+                setSuggestions(user.prompts);
+                setIsLoading(false);
+                hasInitialized.current = true;
+            } else if (user?.user_id && user?.role) {
+                // Otherwise fetch fresh suggestions from backend
+                setIsLoadingSuggestions(true);
+                axios.post(`${API_BASE_URL}/chat/`, {
+                    user_id: user.user_id,
+                    user_role: user.role,
+                    is_initial: true,
+                }).then(response => {
+                    const learningOptions = response.data.learning_options || [];
+                    const suggestions = response.data.suggestions || [];
+                    let suggestionTexts: string[] = [];
+                    if (learningOptions.length > 0) {
+                        suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
+                    } else if (suggestions.length > 0) {
+                        suggestionTexts = suggestions.map((s: any) => s.text || s);
+                    }
+                    setSuggestions(suggestionTexts);
+                    hasInitialized.current = true;
+                }).catch(error => {
+                    console.error("Failed to fetch suggestions:", error);
+                }).finally(() => {
+                    setIsLoadingSuggestions(false);
+                    setIsLoading(false);
+                });
+            } else {
+                setIsLoading(false);
+            }
         };
 
         window.addEventListener('resetChat', handleReset);
@@ -404,7 +440,7 @@ const ChatComponent = () => {
                             onClick={() => setActiveTab('learning')}
                         >
                             <span className={styles.tabIcon}>🎓</span>
-                            Learn AI Fundamentals
+                            Learn Prompt Engineering
                         </button>
                     </div>
 
@@ -438,19 +474,36 @@ const ChatComponent = () => {
                     {/* Learning Tab Content */}
                     {activeTab === 'learning' && (
                         <div className={styles.welcomeSuggestionsContainer}>
-                            <h2 className={styles.suggestionsHeader}>Learn AI fundamentals and prompting ...</h2>
-                            <div className={styles.welcomeSuggestions}>
-                                {LEARNING_FUNDAMENTALS_PROMPTS.map((prompt, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => handleSubmitQuery(prompt)}
-                                        className={styles.welcomeSuggestionCard}
-                                    >
-                                        <div className={styles.suggestionContent}>
-                                            <span className={styles.suggestionText}>{prompt}</span>
-                                        </div>
-                                    </button>
-                                ))}
+                            <h2 className={styles.suggestionsHeader}>Master prompt engineering essentials ...</h2>
+                            <div className={styles.learningPromptsContainer}>
+                                {/* First row: 3 prompts */}
+                                <div className={styles.learningPromptsRow}>
+                                    {LEARNING_FUNDAMENTALS_PROMPTS.slice(0, 3).map((prompt, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => handleSubmitQuery(prompt)}
+                                            className={styles.welcomeSuggestionCard}
+                                        >
+                                            <div className={styles.suggestionContent}>
+                                                <span className={styles.suggestionText}>{prompt}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Second row: 2 prompts (centered) */}
+                                <div className={styles.learningPromptsRow}>
+                                    {LEARNING_FUNDAMENTALS_PROMPTS.slice(3, 5).map((prompt, index) => (
+                                        <button
+                                            key={index + 3}
+                                            onClick={() => handleSubmitQuery(prompt)}
+                                            className={styles.welcomeSuggestionCard}
+                                        >
+                                            <div className={styles.suggestionContent}>
+                                                <span className={styles.suggestionText}>{prompt}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -481,7 +534,10 @@ const ChatComponent = () => {
                 {isLoading && (
                     <div className={`${styles.message} ${styles.portal}`}>
                         <div className={styles.messageContent}>
-                            <span className={styles.loader}></span>
+                            <div className={styles.thinkingIndicator}>
+                                <span className={styles.loader}></span>
+                                <span className={styles.thinkingText}>Thinking...</span>
+                            </div>
                         </div>
                     </div>
                 )}

@@ -32,7 +32,7 @@ POSTGRES_DB = os.getenv("POSTGRES_DB")
 POSTGRES_USER = os.getenv("POSTGRES_USER")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecret")
+JWT_SECRET = os.getenv("JWT_SECRET","supa")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "168"))
 
