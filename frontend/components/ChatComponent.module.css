@@ -312,6 +312,7 @@
     flex-direction: column;
     background: linear-gradient(180deg, #8dbdf8df 100%); /* Light blue gradient - no purple */
     position: relative;
+    overflow-x: hidden; /* Prevent horizontal scrollbar */
 }
 
 /* "New Chat" button in top right corner - returns to welcome view */
@@ -343,6 +344,7 @@
 .messageList {
     flex: 1; /* Takes remaining vertical space */
     overflow-y: auto; /* Scrolls when content overflows */
+    overflow-x: hidden; /* Prevent horizontal scroll */
     padding: 5rem 2rem 2rem;
     max-width: 900px; /* Same width as other components for alignment */
     width: 100%;
@@ -355,6 +357,7 @@
 /* Individual message container - handles user vs AI alignment */
 .message {
     display: flex;
+    width: 100%;
     animation: fadeIn 0.3s ease-in; /* Smooth appearance */
 }
 
@@ -376,6 +379,9 @@
     padding: 1rem 1.5rem;
     border-radius: 16px;
     line-height: 1.6; /* Comfortable reading */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow: hidden;
 }
 
 /* User messages - aligned right with darker blue gradient for contrast */
