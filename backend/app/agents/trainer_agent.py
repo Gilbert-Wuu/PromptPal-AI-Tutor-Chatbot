@@ -149,61 +149,114 @@ class TrainerAgent:
             print(f"Error searching user documents: {e}")
             return []
 
-    def _search_knowledge_base(self, query, user_role, short_term, long_term):
-        """Search Weaviate for relevant content - compatible with both v3 and v4 clients"""
+    def _search_knowledge_base(self, user_id, user_role, query, short_term, long_term):
+        """
+        Enhanced RAG search:
+        - If query relates to Prompt Engineering → PromptGuide is prioritized
+        - Otherwise search CoreConcept + PromptGuide with weighted scoring
+        """
+
         try:
-            # Check if we have v4 client (with collections attribute)
-            if hasattr(self.weaviate_client, 'collections'):
-                # Weaviate v4 client
-                try:
-                    concept_collection = self.weaviate_client.collections.get("CoreConcept")
-                    
-                    # Combine query components into a single string
-                    combined_query = f"{query} {short_term} {long_term}".strip()
-                    
-                    # Use near_text with single string query (not a list)
-                    results = concept_collection.query.near_text(
-                        query=combined_query,  # Changed from list to string
-                        limit=5
-                    )
-                    
-                    # Convert v4 results and filter by role manually
-                    formatted_results = []
-                    for obj in results.objects:
-                        props = obj.properties
-                        obj_role = props.get("role", "").lower()
-                        
-                        # Manual role filtering
-                        if not user_role or obj_role == user_role.lower() or not obj_role:
-                            formatted_results.append({
-                                "content_id": props.get("content_id", ""),
-                                "title": props.get("title", ""),
-                                "content": props.get("content", ""),
-                                "topic": props.get("topic", ""),
-                                "role": props.get("role", ""),
-                                "content_type": props.get("content_type", ""),
-                                "tags": props.get("tags", []),
-                                "importance_score": props.get("importance_score", 1.0)
-                            })
-                            
-                            if len(formatted_results) >= 5:
-                                break
-                    
-                    print(f"✅ Weaviate search returned {len(formatted_results)} results")
-                    return formatted_results
-                    
-                except Exception as e:
-                    logging.error(f"Error with v4 client search: {e}")
-                    print(f"⚠️  Weaviate v4 search failed: {e}")
-                    return []
-            
-            # Weaviate v3 client - should not reach here with v4 client
-            else:
-                logging.error("Weaviate client version not supported")
-                return []
-                
+            print("\n🔍 Enhanced RAG Knowledge Base Search")
+
+            # --- Identify user intent ---
+            prompt_keywords = [
+                "prompt engineering", "prompt", "use AI tools", "instruction",
+                "few-shot", "zero-shot", "context", "copilot", "rag prompt"
+            ]
+
+            is_prompt_query = any(k in query.lower() for k in prompt_keywords)
+
+            # --- Get collections ---
+            concept_collection = self.weaviate_client.collections.get("CoreConcept")
+            prompt_collection = self.weaviate_client.collections.get("PromptGuide")
+
+            # --- Build combined query text ---
+            combined_query = " ".join([
+                query or "",
+                short_term or "",
+                long_term or "",
+            ])
+
+            # -------------------------
+            # CASE 1: Prompt Query → ONLY PromptGuide
+            # -------------------------
+            if is_prompt_query:
+                print("  → Detected prompt-engineering intent. Prioritizing PromptGuide.")
+
+                guide_results = prompt_collection.query.near_text(
+                    query=combined_query,
+                    limit=10  # get more since it's single source
+                )
+
+                learning_content = []
+                for obj in guide_results.objects:
+                    props = obj.properties
+                    learning_content.append({
+                        "title": props.get("title", "Prompt Engineering Guide"),
+                        "content": props.get("content"),
+                        "tags": props.get("tags", []),
+                        "type": "prompt_guide",
+                        "score": obj.metadata.distance  # lower score = better
+                    })
+                return learning_content
+
+            # -------------------------
+            # CASE 2: Normal query → MIX CoreConcept + PromptGuide (with weights)
+            # -------------------------
+            concept_results = concept_collection.query.near_text(
+                query=combined_query,
+                limit=5
+            )
+
+            guide_results = prompt_collection.query.near_text(
+                query=combined_query,
+                limit=5
+            )
+
+            # Weighted scoring
+            def normalize_score(distance):
+                """Convert Weaviate cosine distance into 0-1 relevancy"""
+                return max(0.0001, 1 - distance)  # avoid 0
+
+            learning_content = []
+
+            # --- Core Concepts（normal weight = 1.0）---
+            for obj in concept_results.objects:
+                props = obj.properties
+                score = normalize_score(obj.metadata.distance)
+                learning_content.append({
+                    "title": props.get("title"),
+                    "content": props.get("content"),
+                    "tags": props.get("tags", []),
+                    "type": "core_concept",
+                    "weighted_score": score * 1.0
+                })
+
+            # --- PromptGuide（boost = 1.4x weight）---
+            for obj in guide_results.objects:
+                props = obj.properties
+                score = normalize_score(obj.metadata.distance)
+                learning_content.append({
+                    "title": props.get("title", "Prompt Engineering Guide"),
+                    "content": props.get("content"),
+                    "tags": props.get("tags", []),
+                    "type": "prompt_guide",
+                    "weighted_score": score * 1.4  # BOOST HERE
+                })
+
+            # --- Sort by weighted scores ---
+            learning_content = sorted(
+                learning_content,
+                key=lambda x: x["weighted_score"],
+                reverse=True
+            )
+
+            # Return top 5
+            return learning_content[:5]
+
         except Exception as e:
-            logging.error(f"Error searching knowledge base: {e}")
+            print(f"✗ Error in enhanced KB search: {e}")
             return []
 
     def _store_conversation(self, user_id, user_prompt, response_text):
@@ -241,7 +294,13 @@ class TrainerAgent:
             # If no results from user documents, or no documents selected, search knowledge base
             if not results:
                 print("Searching general knowledge base")
-                results = self._search_knowledge_base(query, user_role, short_term, long_term)
+                results = self._search_knowledge_base(
+                    user_id=user_id,
+                    user_role=user_role,
+                    query=query,
+                    short_term=short_term,
+                    long_term=long_term
+                )
                 print(f"✅ Found {len(results)} results from knowledge base")
 
             # If no results found, create some basic learning content
@@ -264,19 +323,30 @@ class TrainerAgent:
                     })
 
             # Build prompt and generate response
-            prompt = self._build_clear_prompt(user_role, query, short_term, long_term, learning_content)
-            
+            prompt_keywords = [
+                "prompt", "prompt engineering", "few-shot", "zero-shot",
+                "instruction", "rewrite", "system prompt", "copilot"
+            ]
+            is_prompt_query = any(k in query.lower() for k in prompt_keywords)
+
+            if is_prompt_query:
+                prompt = self._build_promptcoach_prompt(user_role, query, learning_content)
+            else:
+                prompt = self._build_clear_prompt(user_role, query, short_term, long_term, learning_content)
+
             try:
-                response = self.llm_client.models.generate_content(model=self.llm_model,
-                contents=prompt,
-                config=self.config)
+                response = self.llm_client.models.generate_content(
+                    model=self.llm_model,
+                    contents=prompt,
+                    config=self.config
+                )
                 text_with_citations = self.add_citations(response)
                 return text_with_citations
+
             except Exception as e:
                 logging.error(f"LLM response generation failed: {e}")
                 conversational_response = "I'm sorry, I'm having trouble generating a response right now. Please try again later."
 
-            # Store conversation
             self._store_conversation(user_id, query, conversational_response)
 
             return {
@@ -296,7 +366,7 @@ class TrainerAgent:
                 "role": user_role,
                 "query": query,
                 "error": str(e),
-                "conversational_response": "I'm sorry, I encountered an error while processing your request. Please try again later."
+                "conversational_response": "I'm sorry, I encountered an error while processing your request."
             }
 
     def add_citations(self, response):
@@ -505,6 +575,50 @@ class TrainerAgent:
             return 0
         finally:
             cursor.close()
+
+    def _build_promptcoach_prompt(self, user_role, query, learning_content):
+        """
+        Prompt Engineering conversational coach:
+        - short
+        - interactive
+        - uses CTA
+        - uses retrieved PromptGuide content
+        - NEVER uses CLEAR
+        """
+
+        content_str = ""
+        for item in learning_content:
+            content_str += f"- {item.get('content', '')}\n"
+
+        prompt = f"""
+    You are PromptCoach — a friendly, interactive AI that teaches users prompt engineering using short, conversational responses.
+
+    STYLE:
+    - Keep responses concise (5–8 sentences)
+    - No academic tone, no CLEAR structure
+    - Give actionable improvements
+    - Include 1 ready-to-copy prompt template
+    - End with an engaging CTA question
+    - Reference PromptGuide content naturally
+
+    USER:
+    - Role: {user_role}
+    - Query: "{query}"
+
+    RETRIEVED PROMPT ENGINEERING KNOWLEDGE:
+    {content_str}
+
+    INSTRUCTIONS:
+    Create an interactive coaching-style response:
+    1. Start with a quick win or insight
+    2. Suggest improvements to the user’s original query
+    3. Provide an improved prompt example
+    4. Provide a reusable prompt template
+    5. End with ONE CTA question (e.g., “Want me to tailor this for your role?”)
+
+    Now generate the PromptCoach response.
+    """
+        return prompt
 
 def main():
     """Simplified main function for testing generate_follow_up_questions"""
