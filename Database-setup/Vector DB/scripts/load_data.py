@@ -10,6 +10,7 @@ import pandas as pd
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from pypdf import PdfReader
 
 # Load environment variables
 load_dotenv()
@@ -156,6 +157,45 @@ try:
 
 except Exception as e:
     print(f"✗ Error loading use cases: {e}")
+
+# ============================================
+# Load FHI Prompt Engineering Guide (PDF)
+# ============================================
+print("\nLoading FHI Prompt Engineering Guide...")
+
+
+PDF_PATH = DATA_DIR / "FHI Prompt Engineering Guide v1.5.pdf"
+
+if not PDF_PATH.exists():
+    print(f"✗ PDF not found at: {PDF_PATH}")
+else:
+    try:
+        reader = PdfReader(str(PDF_PATH))
+        pdf_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+        # chunk text
+        def chunk_text(text, chunk_size=1000):
+            return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+        chunks = chunk_text(pdf_text)
+        prompt_collection = weaviate_client.collections.get("PromptGuide")
+
+        for i, chunk in enumerate(chunks):
+            obj = {
+                "content_id": f"fhi_prompt_{i}",
+                "title": "FHI Prompt Engineering Guide",
+                "content": chunk,
+                "section": f"Section {i}",
+                "tags": ["prompt", "prompt-engineering", "FHI-guide"]
+            }
+            prompt_collection.data.insert(properties=obj)
+            print(f"  ✓ Inserted PromptGuide chunk {i+1}/{len(chunks)}")
+
+        print(f"\n✓ Successfully loaded {len(chunks)} PromptGuide entries")
+
+    except Exception as e:
+        print(f"✗ Error loading PDF: {e}")
+
 
 # ============================================
 # Verify Data
