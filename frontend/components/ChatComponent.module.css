@@ -260,6 +260,36 @@
     font-weight: 500; /* Medium weight */
 }
 
+/* Container for learning prompts with 3-2 layout */
+.learningPromptsContainer {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+}
+
+/* Row for learning prompts */
+.learningPromptsRow {
+    width: 100%;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+}
+
+/* First row: 3 items centered */
+.learningPromptsRow:first-child {
+    justify-content: center;
+}
+
+/* Second row: 2 items centered */
+.learningPromptsRow:last-child {
+    justify-content: center;
+}
+
 /* Loading indicator shown while generating prompts */
 .loadingContainer {
     grid-column: 1 / -1; /* Spans all columns */
@@ -711,9 +741,9 @@
     display: inline-block;
     width: 20px;
     height: 20px;
-    border: 3px solid rgba(255, 255, 255, 0.3); /* Light circle */
+    border: 3px solid rgba(31, 63, 151, 0.2); /* Light blue circle */
     border-radius: 50%; /* Makes it circular */
-    border-top-color: white; /* Colored section that spins */
+    border-top-color: #1f3f97; /* Dark blue section that spins */
     animation: spin 1s ease-in-out infinite;
 }
 
@@ -722,6 +752,20 @@
     to {
         transform: rotate(360deg); /* Full rotation */
     }
+}
+
+/* Container for thinking indicator */
+.thinkingIndicator {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Text for thinking indicator */
+.thinkingText {
+    font-size: 1rem;
+    color: #1f3f97;
+    font-weight: 500;
 }
 
 /* Text next to loading spinner */
