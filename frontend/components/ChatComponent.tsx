@@ -527,7 +527,7 @@ const ChatComponent = () => {
                 {messages.map((msg, index) => (
                     <div key={index} className={`${styles.message} ${styles[msg.sender]}`}>
                         <div className={styles.messageContent}>
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}</ReactMarkdown>
                         </div>
                     </div>
                 ))}

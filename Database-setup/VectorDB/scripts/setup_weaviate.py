@@ -172,6 +172,34 @@ except Exception as e:
     print(f"✗ Error: {e}")
 
 # ============================================
+# Create PromptGuide Collection
+# ============================================
+print("\nCreating PromptGuide collection...")
+
+try:
+    if weaviate_client.collections.exists("PromptGuide"):
+        weaviate_client.collections.delete("PromptGuide")
+        print("  Deleted existing PromptGuide collection")
+
+    weaviate_client.collections.create(
+        name="PromptGuide",
+        vectorizer_config=Configure.Vectorizer.text2vec_openai(
+            model=EMBEDDING_MODEL
+        ),
+        properties=[
+            Property(name="content_id", data_type=DataType.TEXT),
+            Property(name="title", data_type=DataType.TEXT),
+            Property(name="content", data_type=DataType.TEXT),
+            Property(name="section", data_type=DataType.TEXT),
+            Property(name="tags", data_type=DataType.TEXT_ARRAY),
+        ]
+    )
+    print("✓ PromptGuide collection created")
+
+except Exception as e:
+    print(f"✗ Error creating PromptGuide: {e}")
+
+# ============================================
 # Summary
 # ============================================
 print("\n" + "=" * 60)
