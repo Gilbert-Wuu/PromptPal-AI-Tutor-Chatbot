@@ -324,34 +324,6 @@ const ChatComponent = () => {
         );
     };
 
-    const refreshSuggestions = async () => {
-        if (!user?.user_id || !user?.role || isLoadingSuggestions) return;
-        
-        setIsLoadingSuggestions(true);
-        try {
-            const response = await axios.post(`${API_BASE_URL}/chat/`, {
-                user_id: user.user_id,
-                user_role: user.role,
-                is_initial: true,
-            });
-            
-            const learningOptions = response.data.learning_options || [];
-            const suggestions = response.data.suggestions || [];
-            let suggestionTexts: string[] = [];
-            if (learningOptions.length > 0) {
-                suggestionTexts = learningOptions.map((opt: any) => opt.title || opt.description);
-            } else if (suggestions.length > 0) {
-                suggestionTexts = suggestions.map((s: any) => s.text || s);
-            }
-            
-            setSuggestions(suggestionTexts);
-        } catch (error) {
-            console.error("Failed to refresh suggestions:", error);
-        } finally {
-            setIsLoadingSuggestions(false);
-        }
-    };
-
     const clearChatHistory = () => {
         if (user?.user_id) {
             localStorage.removeItem(`chat_session_${user.user_id}`);
@@ -565,36 +537,40 @@ const ChatComponent = () => {
             {/* Regular Suggestions (New Topics) */}
             {suggestions.length > 0 && (
                 <div className={styles.conversationSuggestionsContainer}>
-                    <div className={styles.suggestionsHeaderRow}>
-                        <h3 className={styles.conversationSuggestionsHeader}>How to use AI in</h3>
-                        {!isLoadingSuggestions && (
-                            <button 
-                                onClick={refreshSuggestions} 
-                                className={styles.refreshButton}
-                                title="Get new suggestions"
-                            >
-                                🔄
-                            </button>
-                        )}
-                    </div>
-                    <div className={styles.conversationSuggestions}>
-                        {isLoadingSuggestions ? (
-                            <div className={styles.suggestionsLoading}>
-                                <span className={styles.loader}></span>
-                                <span className={styles.loadingText}>Generating suggestions...</span>
+                    <h3 className={styles.conversationSuggestionsHeader}>How to use AI in</h3>
+                    {isLoadingSuggestions ? (
+                        <div className={styles.suggestionsLoading}>
+                            <span className={styles.loader}></span>
+                            <span className={styles.loadingText}>Generating suggestions...</span>
+                        </div>
+                    ) : (
+                        <div className={styles.conversationSuggestionsWrapper}>
+                            {/* First row: 2 suggestions */}
+                            <div className={styles.conversationSuggestionsRow}>
+                                {suggestions.slice(0, 2).map((s, index) => (
+                                    <button 
+                                        key={index} 
+                                        onClick={() => handleSubmitQuery(s)} 
+                                        className={styles.conversationSuggestionButton}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
                             </div>
-                        ) : (
-                            suggestions.slice(0, 5).map((s, index) => (
-                                <button 
-                                    key={index} 
-                                    onClick={() => handleSubmitQuery(s)} 
-                                    className={styles.conversationSuggestionButton}
-                                >
-                                    {s}
-                                </button>
-                            ))
-                        )}
-                    </div>
+                            {/* Second row: remaining suggestions (up to 3) */}
+                            <div className={styles.conversationSuggestionsRow}>
+                                {suggestions.slice(2, 5).map((s, index) => (
+                                    <button 
+                                        key={index + 2} 
+                                        onClick={() => handleSubmitQuery(s)} 
+                                        className={styles.conversationSuggestionButton}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
