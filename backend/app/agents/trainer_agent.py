@@ -9,16 +9,20 @@ import os
 from openai import OpenAI
 from pydantic import BaseModel
 
+
 class Citation(BaseModel):
     id: int
     url: str
+
 
 class Summary(BaseModel):
     citations: List[Citation]
     summary: str
 
+
 class TrainerAgent:
-    def __init__(self, postgres_client, weaviate_client, summary_agent, llm_client, llm_model, config, grounding_tool, openai_client=None, openai_model="gpt-4"):
+    def __init__(self, postgres_client, weaviate_client, summary_agent, llm_client, llm_model, config, grounding_tool,
+                 openai_client=None, openai_model="gpt-4"):
         self.postgres_client = postgres_client
         self.weaviate_client = weaviate_client
         self.summary_agent = summary_agent
@@ -49,7 +53,7 @@ class TrainerAgent:
         content_str = ""
         for item in learning_content:
             content_str += f"- {item.get('title', '')}: {item.get('content', '')}\n"
-        
+
         prompt = (
             "You are an expert AI learning assistant. Use the CLEAR methodology (Context, Learning objective, Examples, Action, Review) to generate a helpful, conversational response for the user.\n\n"
             "C - Context:\n"
@@ -78,18 +82,18 @@ class TrainerAgent:
                 # ===== Weaviate v4 client =====
                 print("Using Weaviate v4 client")
                 user_doc_collection = self.weaviate_client.collections.get("UserDocument")
-                
+
                 results = user_doc_collection.query.near_text(
                     query=query,
                     limit=limit * 3,
                     return_properties=["chunk_text", "filename", "chunk_index", "document_id"]
                 )
-                
+
                 filtered_results = []
                 for obj in results.objects:
                     props = obj.properties
                     doc_id = props.get("document_id", "")
-                    
+
                     if doc_id in document_ids:
                         filtered_results.append({
                             "title": f"{props.get('filename', 'Document')} (Chunk {props.get('chunk_index', 0)})",
@@ -97,16 +101,16 @@ class TrainerAgent:
                             "tags": [props.get("filename", "")],
                             "type": "user_document"
                         })
-                        
+
                         if len(filtered_results) >= limit:
                             break
-                
+
                 print(f"Found {len(filtered_results)} relevant chunks from user documents (v4)")
                 return filtered_results
             else:
                 # ===== Weaviate v3 client =====
                 print("Using Weaviate v3 client")
-                
+
                 # Build where filter for document IDs
                 where_filter = {
                     "operator": "Or",
@@ -119,7 +123,7 @@ class TrainerAgent:
                         for doc_id in document_ids
                     ]
                 }
-                
+
                 # Query Weaviate v3
                 result = (
                     self.weaviate_client.query
@@ -129,7 +133,7 @@ class TrainerAgent:
                     .with_limit(limit)
                     .do()
                 )
-                
+
                 # Extract results
                 filtered_results = []
                 if "data" in result and "Get" in result["data"] and "UserDocument" in result["data"]["Get"]:
@@ -140,10 +144,10 @@ class TrainerAgent:
                             "tags": [item.get("filename", "")],
                             "type": "user_document"
                         })
-                
+
                 print(f"Found {len(filtered_results)} relevant chunks from user documents (v3)")
                 return filtered_results
-            
+
         except Exception as e:
             logging.error(f"Error searching user documents: {e}")
             print(f"Error searching user documents: {e}")
@@ -161,8 +165,8 @@ class TrainerAgent:
 
             # --- Identify user intent ---
             prompt_keywords = [
-                "prompt engineering", "prompt", "use AI tools", "instruction",
-                "few-shot", "zero-shot", "context", "copilot", "rag prompt"
+                "prompt engineering", "prompt", "use AI tools", "comparing",
+                "few-shot", "Key principles", "context", "copilot", "rag prompt"
             ]
 
             is_prompt_query = any(k in query.lower() for k in prompt_keywords)
@@ -192,12 +196,16 @@ class TrainerAgent:
                 learning_content = []
                 for obj in guide_results.objects:
                     props = obj.properties
+                    # FIX: Handle None distance
+                    distance = getattr(obj.metadata, 'distance', None) if hasattr(obj, 'metadata') else None
+                    score = distance if distance is not None else 0.5
+
                     learning_content.append({
                         "title": props.get("title", "Prompt Engineering Guide"),
                         "content": props.get("content"),
                         "tags": props.get("tags", []),
                         "type": "prompt_guide",
-                        "score": obj.metadata.distance  # lower score = better
+                        "score": score  # lower score = better
                     })
                 return learning_content
 
@@ -217,6 +225,8 @@ class TrainerAgent:
             # Weighted scoring
             def normalize_score(distance):
                 """Convert Weaviate cosine distance into 0-1 relevancy"""
+                if distance is None:
+                    return 0.5  # default mid-range score if distance unavailable
                 return max(0.0001, 1 - distance)  # avoid 0
 
             learning_content = []
@@ -224,7 +234,9 @@ class TrainerAgent:
             # --- Core Concepts（normal weight = 1.0）---
             for obj in concept_results.objects:
                 props = obj.properties
-                score = normalize_score(obj.metadata.distance)
+                # FIX: Safe distance extraction
+                distance = getattr(obj.metadata, 'distance', None) if hasattr(obj, 'metadata') else None
+                score = normalize_score(distance)
                 learning_content.append({
                     "title": props.get("title"),
                     "content": props.get("content"),
@@ -236,7 +248,9 @@ class TrainerAgent:
             # --- PromptGuide（boost = 1.4x weight）---
             for obj in guide_results.objects:
                 props = obj.properties
-                score = normalize_score(obj.metadata.distance)
+                # FIX: Safe distance extraction
+                distance = getattr(obj.metadata, 'distance', None) if hasattr(obj, 'metadata') else None
+                score = normalize_score(distance)
                 learning_content.append({
                     "title": props.get("title", "Prompt Engineering Guide"),
                     "content": props.get("content"),
@@ -257,6 +271,8 @@ class TrainerAgent:
 
         except Exception as e:
             print(f"✗ Error in enhanced KB search: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _store_conversation(self, user_id, user_prompt, response_text):
@@ -284,13 +300,13 @@ class TrainerAgent:
 
             # Determine which source to search
             results = []
-            
+
             # If user selected documents, search their documents
             if selected_document_ids:
                 print(f"Searching {len(selected_document_ids)} selected user documents")
                 results = self._search_user_documents(query, selected_document_ids, limit=5)
                 print(f"✅ Found {len(results)} chunks from user documents")
-            
+
             # If no results from user documents, or no documents selected, search knowledge base
             if not results:
                 print("Searching general knowledge base")
@@ -335,18 +351,22 @@ class TrainerAgent:
                 prompt = self._build_clear_prompt(user_role, query, short_term, long_term, learning_content)
 
             try:
+                # FIX: Correct Gemini API format - use string directly, not list of dicts
                 response = self.llm_client.models.generate_content(
                     model=self.llm_model,
-                    contents=prompt,
+                    contents=prompt,  # Pass string directly
                     config=self.config
                 )
-                text_with_citations = self.add_citations(response)
-                return text_with_citations
 
+                conversational_response = response.text
             except Exception as e:
                 logging.error(f"LLM response generation failed: {e}")
-                conversational_response = "I'm sorry, I'm having trouble generating a response right now. Please try again later."
-
+                import traceback
+                traceback.print_exc()
+                conversational_response = (
+                    "I'm sorry — I ran into a technical issue generating your AI learning answer. "
+                    "Please try again in a moment!"
+                )
             self._store_conversation(user_id, query, conversational_response)
 
             return {
@@ -361,6 +381,8 @@ class TrainerAgent:
 
         except Exception as e:
             logging.error(f"Error in generate_learning_content: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "user_id": user_id,
                 "role": user_role,
@@ -391,14 +413,15 @@ class TrainerAgent:
                 text = text[:end_index] + citation_string + text[end_index:]
 
         return text
-    
-    def generate_follow_up_questions(self, user_id: str, user_role: str, current_topic: str, lesson_content: str) -> list:
+
+    def generate_follow_up_questions(self, user_id: str, user_role: str, current_topic: str,
+                                     lesson_content: str) -> list:
         """Generate 3 follow-up questions to dive deeper into current topic"""
         try:
             # Get user context
             long_term = self.summary_agent.get_long_term_summary(user_id)
             short_term = self.summary_agent.get_short_term_summary(user_id)
-            
+
             prompt = f"""
     You are an AI learning assistant. The user just learned about: "{current_topic}"
 
@@ -410,7 +433,7 @@ class TrainerAgent:
     {lesson_content[:500]}...
 
     Generate EXACTLY 3 short, actionable follow-up prompts (5-6 words each) that help the user dive deeper into this topic.
-    
+
     Requirements:
     - Each prompt should be 5-6 words maximum
     - Focus on practical, role-specific applications
@@ -433,17 +456,17 @@ class TrainerAgent:
 
     Return ONLY the 3 numbered questions, nothing else.
     """
-            
+
             response = self.openai_client.chat.completions.create(
                 model=self.openai_model,
                 messages=[{"role": "system", "content": prompt}],
                 max_tokens=150,
                 temperature=0.7
             )
-            
+
             text = response.choices[0].message.content
             print(f"✅ Follow-up questions response:\n{text}")
-            
+
             # Parse response
             questions = []
             for line in text.strip().split('\n'):
@@ -456,15 +479,15 @@ class TrainerAgent:
                             "id": f"followup_{len(questions) + 1}",
                             "text": question
                         })
-            
+
             return questions[:3]
-            
+
         except Exception as e:
             logging.error(f"Error generating follow-up questions: {e}")
             # Fallback
             topic_words = current_topic.split()[:3]  # Take first 3 words
             topic_short = " ".join(topic_words)
-            
+
             return [
                 {"id": "followup_1", "text": f"Deep dive into {topic_short}"},
                 {"id": "followup_2", "text": f"Practical {topic_short} examples"},
@@ -479,10 +502,10 @@ class TrainerAgent:
             cursor.execute("""
                 SELECT add_completed_module(%s, %s)
             """, (user_id, completed_module))
-            
+
             self.postgres_client.commit()
             return True
-            
+
         except Exception as e:
             logging.error(f"Error updating learning progress: {e}")
             self.postgres_client.rollback()
@@ -508,12 +531,12 @@ class TrainerAgent:
                 WHERE u.user_id = %s
                 GROUP BY u.user_id, u.role, u.created_at, p.completed_modules, p.last_login
             """, (user_id,))
-            
+
             result = cursor.fetchone()
-            
+
             if not result:
                 return {"error": "User not found"}
-            
+
             # Handle JSONB data properly
             completed_modules = []
             if result[2]:
@@ -522,7 +545,7 @@ class TrainerAgent:
                     completed_modules = result[2] if isinstance(result[2], list) else []
                 except (TypeError, ValueError):
                     completed_modules = []
-            
+
             return {
                 "user_role": result[0],
                 "member_since": result[1],
@@ -532,7 +555,7 @@ class TrainerAgent:
                 "last_login": result[3],
                 "learning_streak": self._calculate_learning_streak(user_id)
             }
-            
+
         except Exception as e:
             logging.error(f"Error getting learning analytics: {e}")
             return {"error": str(e)}
@@ -550,16 +573,16 @@ class TrainerAgent:
                 ORDER BY timestamp DESC
                 LIMIT 30
             """, (user_id,))
-            
+
             dates = [row[0] for row in cursor.fetchall()]
-            
+
             if not dates:
                 return 0
-            
+
             # Calculate consecutive days from most recent
             streak = 1
             current_date = dates[0]
-            
+
             for i in range(1, len(dates)):
                 previous_date = dates[i]
                 if (current_date - previous_date).days == 1:
@@ -567,9 +590,9 @@ class TrainerAgent:
                     current_date = previous_date
                 else:
                     break
-            
+
             return streak
-            
+
         except Exception as e:
             logging.error(f"Error calculating learning streak: {e}")
             return 0
@@ -591,15 +614,14 @@ class TrainerAgent:
             content_str += f"- {item.get('content', '')}\n"
 
         prompt = f"""
-    You are PromptCoach — a friendly, interactive AI that teaches users prompt engineering using short, conversational responses.
-
+    You are PromptCoach — a friendly, interactive assistant who helps users learn to use AI tools
+(Copilot, ChatGPT, Gemini) AND helps them improve the prompts they give those tools.
     STYLE:
-    - Keep responses concise (5–8 sentences)
-    - No academic tone, no CLEAR structure
-    - Give actionable improvements
-    - Include 1 ready-to-copy prompt template
-    - End with an engaging CTA question
-    - Reference PromptGuide content naturally
+    - Conversational, helpful, concise (6–9 sentences)
+    - No academic tone
+    - No CLEAR methodology
+    - Never ignore the user's question
+    - Never teach prompt engineering instead of answering the question
 
     USER:
     - Role: {user_role}
@@ -610,14 +632,23 @@ class TrainerAgent:
 
     INSTRUCTIONS:
     Create an interactive coaching-style response:
-    1. Start with a quick win or insight
-    2. Suggest improvements to the user’s original query
-    3. Provide an improved prompt example
-    4. Provide a reusable prompt template
-    5. End with ONE CTA question (e.g., “Want me to tailor this for your role?”)
+    1. ALWAYS answer the user's actual question FIRST.
+       - Explain the tool or concept clearly
+       - Give examples relevant to the user’s role
+       - Use content retrieved from PromptGuide where helpful
 
-    Now generate the PromptCoach response.
-    """
+    2. AFTER answering the question, THEN add a short prompt-engineering insight.
+       - 1–2 sentences only
+       - Explain how the user could delegate this task to AI more effectively
+       - Reference PromptGuide content naturally
+    
+    3. Provide ONE ready-to-copy prompt based on the user's query.
+       - Make it specific to the user’s role
+       - Do NOT output a generic template
+    
+    4. End with ONE friendly CTA question.
+        Now generate the PromptCoach response.
+        """
         return prompt
 
 def main():
