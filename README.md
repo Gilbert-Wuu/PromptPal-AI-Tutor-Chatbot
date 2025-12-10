@@ -4,27 +4,12 @@ PromptPal is an AI-powered chatbot that helps employees at Federated Hermes unde
 
 ---
 
-## Features
+## Recommended Setup
 
-* Conversational engine supporting multi-turn, context-aware dialogue.
-* Modular agent design for tasks such as:
-
-  * AI fundamentals tutoring
-  * Prompt editing and refinement
-  * Use case discovery
-* Adaptive learning approach based on user proficiency.
-* Transparent logging for debugging and accountability.
-
----
-
-## Technical Architecture
-
-* **Core**: Central conversational engine (generative AI backbone).
-* **Agents**: Specialized modules for different pedagogical tasks.
-* **Integration**: Scalable deployment into Athena (Federated Hermes’ in-house AI portal).
-* **Reasoning**: Chain-of-thought style internal evaluation before generating responses.
-
----
+Python version: 3.12.7
+pip version: 25.1.1
+Node.js version: 24.11.0
+npm version: 11.6.1
 
 ## Getting Started
 
@@ -38,20 +23,36 @@ PromptPal is an AI-powered chatbot that helps employees at Federated Hermes unde
 
    ```bash
    pip install -r requirements.txt
+   cd frontend
    npm install
    ```
-3. Run the development server:
+   
+3. Set up environment variables:
 
+   Create a `.env` file in the root directory and add necessary configurations, [an example env file](./.env.example) is present in the root directory.
+
+4. Set up the database:
+
+   Add the database configuration in the `.env` file and run the SQL scripts located in the [`Database-setup` folder](./Database-setup/PostgreSQL/scripts) to create necessary tables.
+
+5. Set up the Vector database:
+
+   Start your docker engine, navigate to the [`VectorDB` folder](./Database-setup/VectorDB) and run:
+
+   ```bash
+    docker-compose up -d
+    ```
+   
+6. Start the backend server:
+
+   Navigate to the [`app` directory](./backend/app) and run:
+
+   ```bash
+    uvicorn main:app --reload
+    ```
+   
+7. Run the development server:
+    Navigate to the [`frontend` directory](./frontend) and run:
    ```bash
    npm run dev
    ```
-
----
-
-## Roadmap
-
-* [ ] Build central conversational engine
-* [ ] Implement AI fundamentals agent
-* [ ] Add prompt engineering/refinement agent
-* [ ] Introduce adaptive learning module
-* [ ] Integrate into Athena platform
