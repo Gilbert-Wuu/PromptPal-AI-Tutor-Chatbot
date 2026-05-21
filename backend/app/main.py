@@ -86,32 +86,6 @@ app.add_middleware(
 )
 
 
-@app.get("/api/summary/{user_id}")
-async def get_summary(user_id: str):
-    try:
-        long_term_summary = summary.get_long_term_summary(user_id)
-        short_term_summary = summary.get_short_term_summary(user_id)
-        return {"long_term_summary": long_term_summary, "short_term_summary": short_term_summary}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/train")
-async def train_agent(data: dict):
-    try:
-        if not trainer:
-            raise HTTPException(status_code=503, detail="Trainer service is unavailable (Weaviate not connected)")
-
-        response = trainer.generate_learning_content(
-            user_id=data.get("user_id"),
-            user_role=data.get("user_role"),
-            query=data.get("query")
-        )
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.post("/api/assessment")
 async def generate_assessment(data: dict):
     try:
@@ -119,32 +93,6 @@ async def generate_assessment(data: dict):
         topic = data.get("topic")
         response = await assessment.create_quiz(topic, assessment.getModules(user_id), user_id)
         return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/navigate")
-async def navigate_learning(data: dict):
-    try:
-        if not navigator:
-            raise HTTPException(status_code=503, detail="Navigator service is unavailable (Weaviate not connected)")
-
-        user_id = data.get("user_id")
-        user_role = data.get("user_role")
-        completed_modules = data.get("completed_modules", [])
-
-        # Get raw navigator suggestions
-        options = navigator.get_next_learning_options(
-            user_id=user_id,
-            user_role=user_role,
-            completed_modules=completed_modules
-        )
-
-        # 💡 Format suggestions with "using AI"
-        formatted = [f"How to {opt.lower()} using AI?" for opt in options]
-
-        return {"next_steps": formatted}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -274,49 +222,6 @@ async def login(data: LoginRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/auth/user/{email}")
-async def get_user(email: str):
-    """Get user information by email"""
-    try:
-        cursor = postgres_conn.cursor()
-        cursor.execute(
-            """
-            SELECT u.user_id,
-                   u.email,
-                   u.role,
-                   u.created_at,
-                   u.long_term_summary,
-                   p.completed_modules,
-                   p.quiz_scores,
-                   p.last_login
-            FROM users u
-                     LEFT JOIN progress p ON u.user_id = p.user_id
-            WHERE u.email = %s
-            """,
-            (email,)
-        )
-        user = cursor.fetchone()
-        cursor.close()
-
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        return {
-            "user_id": str(user[0]),
-            "email": user[1],
-            "role": user[2],
-            "created_at": user[3].isoformat(),
-            "long_term_summary": user[4],
-            "completed_modules": user[5] if user[5] else [],
-            "quiz_scores": user[6] if user[6] else {},
-            "last_login": user[7].isoformat() if user[7] else None
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 def create_session_token(user_id: str) -> str:
     payload = {
         "sub": user_id,
@@ -405,13 +310,6 @@ def cache_prompts_task(user_id: str):
         print(f"Error in prompt caching background task for user {user_id}: {e}")
         import traceback
         traceback.print_exc()
-
-@app.post("/cache-prompts/")
-async def trigger_cache_prompts(background_tasks: BackgroundTasks, user_id: str):
-    """Endpoint to trigger the asynchronous prompt caching task."""
-    background_tasks.add_task(cache_prompts_task, user_id)
-    return {"message": "Prompt caching task has been scheduled."}
-
 
 @app.get("/auth/me")
 async def auth_me(authorization: Optional[str] = Header(None)):

@@ -1,7 +1,3 @@
-import os
-
-import dotenv
-import psycopg2
 from openai import OpenAI
 import logging
 
@@ -351,50 +347,3 @@ class SummaryAgent:
         return self._summarize_with_llm(text, "short-term", max_tokens=max_tokens)
 
 
-def main():
-    if 'OPENAI_API_KEY' in os.environ:
-        del os.environ['OPENAI_API_KEY']
-
-    dotenv.load_dotenv()
-
-    # Set up environment variables
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-    POSTGRES_DB = os.getenv("POSTGRES_DB")
-    POSTGRES_USER = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-    print(POSTGRES_PASSWORD)
-    print(POSTGRES_USER)
-
-    # Initialize dependencies
-    postgres_conn = psycopg2.connect(
-        dbname=POSTGRES_DB,
-        user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD,
-        host=POSTGRES_HOST,
-        port=POSTGRES_PORT
-    )
-
-    lllm_client = OpenAI(api_key=OPENAI_API_KEY)
-    sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
-
-    agent = SummaryAgent(postgres_conn, lllm_client)
-
-    print("Short-term summary:")
-    short_summary = agent.get_short_term_summary(sample_user_id)
-    print(short_summary)
-
-    print("\nLong-term summary:")
-    long_summary = agent.get_long_term_summary(sample_user_id)
-    print(long_summary)
-
-    print("\nUpdating long-term summary...")
-    updated_summary = agent.update_long_term_summary(sample_user_id)
-    print("Updated long-term summary:")
-    print(updated_summary)
-
-
-if __name__ == "__main__":
-    main()

@@ -1,9 +1,5 @@
 import logging
-import dotenv
 from openai import OpenAI
-import weaviate
-import os
-import psycopg2
 from .summary_agent import SummaryAgent
 
 class NavigatorAgent:
@@ -215,53 +211,3 @@ Return ONLY the numbered list. No explanation.
             logging.error(f"Failed to get next learning options: {e}")
             return ["Error generating learning options. Please try again later."]
 
-def main():
-    """Main function for testing NavigatorAgent"""
-    if 'OPENAI_API_KEY' in os.environ:
-        del os.environ['OPENAI_API_KEY']
-
-    dotenv.load_dotenv()
-
-    # Set up environment variables
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    WEAVIATE_URL = os.getenv("WEAVIATE_URL")
-
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-    POSTGRES_DB = os.getenv("POSTGRES_DB")
-    POSTGRES_USER = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-
-    postgres_conn = psycopg2.connect(
-        dbname=POSTGRES_DB,
-        user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD,
-        host=POSTGRES_HOST,
-        port=POSTGRES_PORT
-    )
-
-    llm_client = OpenAI(api_key=OPENAI_API_KEY)
-    summary = SummaryAgent(postgres_conn, llm_client)
-    
-    # Sample data
-    sample_user_id = "426b13de-66a6-4b45-8631-0ead896d7d54"
-    sample_user_role = "Data Scientist"
-    sample_completed_modules = ["Introduction to AI", "Machine Learning Basics"]
-
-    # Initialize NavigatorAgent
-    agent = NavigatorAgent(llm_client, summary)
-
-    print("Getting next learning options...")
-    options = agent.get_next_learning_options(
-        user_id=sample_user_id,
-        user_role=sample_user_role,
-        completed_modules=sample_completed_modules
-    )
-
-    print("\nNext learning options:")
-    for i, option in enumerate(options, 1):
-        print(f"{i}. {option}")
-    
-    
-if __name__ == "__main__":
-    main()

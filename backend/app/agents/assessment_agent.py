@@ -2,13 +2,10 @@
 from __future__ import annotations
 
 import json
-import dotenv
 import asyncio
 import re
 
 from openai import OpenAI
-
-dotenv.load_dotenv()
 
 
 class AssessmentAgent:
@@ -191,60 +188,3 @@ class AssessmentAgent:
             return "Unknown role"
 
 
-def main():
-    import os
-    import psycopg2
-
-    if 'OPENAI_API_KEY' in os.environ:
-        del os.environ['OPENAI_API_KEY']
-
-    dotenv.load_dotenv()
-
-    # Set up environment variables
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-    POSTGRES_DB = os.getenv("POSTGRES_DB")
-    POSTGRES_USER = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-
-    print(f"Connecting to PostgreSQL at {POSTGRES_HOST}:{POSTGRES_PORT}")
-
-    # Initialize dependencies
-    postgres_conn = psycopg2.connect(
-        dbname=POSTGRES_DB,
-        user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD,
-        host=POSTGRES_HOST,
-        port=POSTGRES_PORT
-    )
-
-    llm_client = OpenAI(api_key=OPENAI_API_KEY)
-    sample_user_id = "07c813e7-987a-47bf-a284-d51283754760"
-
-    agent = AssessmentAgent(llm_client, postgres_conn)
-
-    print("\n=== Testing Quiz Generation ===")
-
-    # Get modules for the user
-    modules = agent.getModules(sample_user_id)
-    print(f"User completed modules: {modules}")
-
-    # Generate a quiz
-    topic = "Python basics"
-    print(f"\nGenerating quiz on topic: {topic}")
-
-    quiz = asyncio.run(agent.create_quiz(topic, modules))
-
-    if quiz:
-        print("\n✅ Quiz generated successfully:")
-        print(json.dumps(quiz, indent=2))
-    else:
-        print("\n❌ Failed to generate quiz")
-
-    postgres_conn.close()
-
-
-if __name__ == "__main__":
-    main()

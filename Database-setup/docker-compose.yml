@@ -1,6 +1,30 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai_tutor_postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./PostgreSQL/scripts/init_database.sql:/docker-entrypoint-initdb.d/01_init_database.sql
+      - ./PostgreSQL/scripts/sessions_table.sql:/docker-entrypoint-initdb.d/02_sessions_table.sql
+      - ./PostgreSQL/scripts/add_documents_table.sql:/docker-entrypoint-initdb.d/03_add_documents_table.sql
+      - ./PostgreSQL/scripts/add_prompts_column.sql:/docker-entrypoint-initdb.d/04_add_prompts_column.sql
+    environment:
+      POSTGRES_USER: ai_tutor_admin
+      POSTGRES_PASSWORD: promptpal123
+      POSTGRES_DB: ai_tutor_db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_tutor_admin -d ai_tutor_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai_tutor_network
+
   weaviate:
     image: cr.weaviate.io/semitechnologies/weaviate:1.27.1
     container_name: ai_tutor_weaviate
@@ -55,6 +79,7 @@ services:
     restart: "no"
 
 volumes:
+  postgres_data:
   weaviate_data:
 
 networks:
