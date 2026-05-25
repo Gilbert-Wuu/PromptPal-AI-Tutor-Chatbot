@@ -1,14 +1,15 @@
-.PHONY: dev api stop docker logs help
+.PHONY: dev api stop docker logs load-data help
 
 DOCKER_DIR = Database-setup
 
 help:
 	@echo "Usage:"
-	@echo "  make api    — Docker + Backend only (use /docs for testing)"
-	@echo "  make dev    — Docker + Backend + Frontend (full stack)"
-	@echo "  make stop   — Stop all services"
-	@echo "  make docker — Start Docker containers only"
-	@echo "  make logs   — Tail backend logs"
+	@echo "  make api       — Docker + Backend only (use /docs for testing)"
+	@echo "  make dev       — Docker + Backend + Frontend (full stack)"
+	@echo "  make stop      — Stop all services"
+	@echo "  make docker    — Start Docker containers only"
+	@echo "  make load-data — Reload Weaviate data (CoreConcept, UseCase, PromptGuide)"
+	@echo "  make logs      — Tail backend logs"
 
 # Most common: Docker + Backend only
 api: docker
@@ -37,6 +38,12 @@ stop:
 	@pkill -f "uvicorn backend.app.main" 2>/dev/null || true
 	@pkill -f "next dev" 2>/dev/null || true
 	@echo "→ All services stopped."
+
+# Reload Weaviate knowledge base data (CoreConcept, UseCase, PromptGuide)
+# Run this if /chat/ reports "could not find class CoreConcept in schema"
+load-data: docker
+	@echo "→ Loading Weaviate knowledge base data..."
+	python Database-setup/VectorDB/scripts/load_data_local.py
 
 # Tail uvicorn logs (useful when running dev in background)
 logs:
