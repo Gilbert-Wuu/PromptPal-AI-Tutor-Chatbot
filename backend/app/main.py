@@ -229,6 +229,7 @@ async def login(data: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
+        postgres_conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -317,6 +318,7 @@ def cache_prompts_task(user_id: str):
             print(f"Navigator agent returned no new prompts for user {user_id}.")
 
     except Exception as e:
+        postgres_conn.rollback()
         print(f"Error in prompt caching background task for user {user_id}: {e}")
         import traceback
         traceback.print_exc()
@@ -457,6 +459,7 @@ async def chat(data: ChatRequest, background_tasks: BackgroundTasks):
     except HTTPException:
         raise
     except Exception as e:
+        postgres_conn.rollback()
         print(f"Chat error: {str(e)}")
         import traceback
         traceback.print_exc()
@@ -494,6 +497,7 @@ async def get_topics(user_id: str):
 
         return topics
     except Exception as e:
+        postgres_conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
