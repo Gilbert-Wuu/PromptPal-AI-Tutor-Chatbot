@@ -177,7 +177,29 @@ The 200-line orchestration is replaced by a single `graph.invoke()` call.
 
 ## What We Didn't Change (Yet)
 
-**Connection pooling**: The current code uses a single global `psycopg2.connect()`. Parallel branches sharing one connection is safe as long as LangGraph runs them in separate threads (which it does via `concurrent.futures`), but for higher concurrency we should migrate to `psycopg2.pool.ThreadedConnectionPool`. This is noted as a follow-up task.
+**Connection pooling** ⚠️ **Must fix before production**
+
+The current code uses a single global `psycopg2.connect()`. Within a single `/chat/` request this is safe — the parallel branches (`follow_up`, `navigator`) only touch OpenAI and Weaviate, never postgres. The three nodes that do use postgres (`fetch_summaries`, `trainer`, `save_module`) run sequentially, so there is no intra-request race condition.
+
+However, `psycopg2` connections are **not thread-safe across concurrent requests**. If two users send `/chat/` at the same time, both requests share the same connection object and will likely corrupt each other's cursor state, producing errors or silently mixed query results.
+
+This is acceptable for a single-user demo, but **must be resolved before any multi-user or production deployment**:
+
+```python
+# Replace the single connection in main.py:
+postgres_conn = psycopg2.connect(...)
+
+# With a thread-safe pool:
+from psycopg2 import pool
+postgres_pool = pool.ThreadedConnectionPool(minconn=2, maxconn=10, ...)
+
+# Each node acquires and releases its own connection:
+conn = postgres_pool.getconn()
+try:
+    # ... DB work ...
+finally:
+    postgres_pool.putconn(conn)
+```
 
 **`cache_prompts_task` background task**: This still runs as a FastAPI `BackgroundTasks` after the graph returns. It could be modeled as a post-graph side effect node, but since it's already non-blocking and uses the same `NavigatorAgent` logic, leaving it as-is is fine for now.
 
