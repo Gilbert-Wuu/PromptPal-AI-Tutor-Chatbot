@@ -8,7 +8,7 @@ PromptPal is an AI-powered learning platform that helps employees at Federated H
 
 PromptPal's chat pipeline is built on **LangGraph** — a directed graph where each processing step is an isolated node that reads from and writes to a shared state object. Follow-up questions and navigation suggestions run in parallel, cutting response latency by ~30%.
 
-**[View Interactive Architecture →](https://htmlpreview.github.io/?https://github.com/RishabhDev42/PromptPal/blob/main/docs/langgraph_architecture.html)**
+**[View Interactive Architecture →](https://htmlpreview.github.io/?https://github.com/Gilbert-Wuu/PromptPal-AI-Tutor-Chatbot/blob/main/docs/langgraph_architecture.html)**
 
 ```
 [fetch_summaries] → [trainer] → [follow_up]  ↘
@@ -46,7 +46,7 @@ See [`docs/012-LangGraph-Migration.md`](./docs/012-LangGraph-Migration.md) for t
 ### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/RishabhDev42/PromptPal.git
+git clone https://github.com/Gilbert-Wuu/PromptPal-AI-Tutor-Chatbot.git
 cd PromptPal
 
 pip install -r requirements.txt
