@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromptPal · LangGraph Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --surface: #131929;
+      --surface2: #1a2236;
+      --border: #1f2d47;
+      --text: #e2e8f0;
+      --muted: #8896a7;
+      --accent-blue: #4f8ef7;
+      --accent-green: #22c98e;
+      --accent-amber: #f0a94e;
+      --accent-purple: #a78bfa;
+      --accent-red: #f87171;
+      --accent-cyan: #38bdf8;
+      --node-fetch: #22c98e;
+      --node-trainer: #4f8ef7;
+      --node-followup: #f0a94e;
+      --node-navigator: #a78bfa;
+      --node-save: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.6; }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+    section { padding: 5rem 0; border-bottom: 1px solid var(--border); }
+
+    /* ── Hero ───────────────────────────────────────────────────── */
+    .hero {
+      padding: 5rem 0 4rem;
+      text-align: center;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,142,247,0.12) 0%, transparent 70%);
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(79,142,247,0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(79,142,247,0.3);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.3rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, #e2e8f0 30%, #4f8ef7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+    .hero p { color: var(--muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+
+    /* ── Section headings ───────────────────────────────────────── */
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent-blue);
+      margin-bottom: 0.5rem;
+    }
+    .section-title {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .section-desc { color: var(--muted); max-width: 680px; }
+
+    /* ── Problem cards ──────────────────────────────────────────── */
+    .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin-top: 2.5rem; }
+    .problem-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .problem-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-red), transparent);
+    }
+    .problem-card .number {
+      font-size: 3rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: rgba(248,113,113,0.15);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+    .problem-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--accent-red); }
+    .problem-card p { font-size: 0.875rem; color: var(--muted); }
+    .problem-card code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: rgba(248,113,113,0.1);
+      color: var(--accent-red);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    /* ── Mermaid diagrams ───────────────────────────────────────── */
+    .diagram-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-top: 2rem;
+      overflow-x: auto;
+    }
+    .diagram-wrapper .mermaid { display: flex; justify-content: center; }
+    .diagram-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .diagram-tab {
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .diagram-tab.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+    .diagram-panel { display: none; }
+    .diagram-panel.active { display: block; }
+
+    /* ── State matrix ───────────────────────────────────────────── */
+    .matrix-wrapper { overflow-x: auto; margin-top: 2rem; }
+    .state-matrix {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 0.82rem;
+    }
+    .state-matrix th {
+      background: var(--surface2);
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-align: center;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .state-matrix th.field-col { text-align: left; }
+    .state-matrix td {
+      padding: 0.6rem 1rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .state-matrix td.field-name { text-align: left; font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+    .state-matrix td.field-type { color: var(--muted); font-size: 0.75rem; }
+    .state-matrix tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .badge-read {
+      display: inline-block;
+      background: rgba(79,142,247,0.2);
+      color: var(--accent-blue);
+      border: 1px solid rgba(79,142,247,0.35);
+      border-radius: 4px;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+    }
+    .badge-write {
+      display: inline-block;
+      background: rgba(34,201,142,0.2);
+      color: var(--accent-green);
+      border: 1px solid rgba(34,201,142,0.35);
+      border-radius: 4px;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+    }
+    .badge-input {
+      display: inline-block;
+      background: rgba(167,139,250,0.2);
+      color: var(--accent-purple);
+      border: 1px solid rgba(167,139,250,0.35);
+      border-radius: 4px;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+    }
+    .badge-empty { color: var(--border); font-size: 0.8rem; }
+
+    /* group rows */
+    .state-matrix .group-input td { background: rgba(167,139,250,0.04); }
+    .state-matrix .group-memory td { background: rgba(34,201,142,0.04); }
+    .state-matrix .group-content td { background: rgba(79,142,247,0.04); }
+    .state-matrix .group-parallel td { background: rgba(240,169,78,0.04); }
+    .state-matrix .group-final td { background: rgba(248,113,113,0.04); }
+
+    .group-label td {
+      background: var(--surface2) !important;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0.4rem 1rem;
+    }
+
+    /* ── Node detail cards ──────────────────────────────────────── */
+    .node-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-top: 2.5rem; }
+    .node-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .node-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .node-card.fetch::before  { background: var(--node-fetch); }
+    .node-card.trainer::before { background: var(--node-trainer); }
+    .node-card.followup::before { background: var(--node-followup); }
+    .node-card.navigator::before { background: var(--node-navigator); }
+    .node-card.save::before { background: var(--node-save); }
+
+    .node-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .node-icon { font-size: 1.5rem; }
+    .node-name { font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+    .node-title { font-size: 1rem; font-weight: 600; }
+
+    .node-section { margin-top: 1rem; }
+    .node-section h4 { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.5rem; }
+    .node-section ul { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .node-section li { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; }
+
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pill-read { background: rgba(79,142,247,0.15); color: var(--accent-blue); }
+    .pill-write { background: rgba(34,201,142,0.15); color: var(--accent-green); }
+    .pill-service { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--border); }
+    .pill-llm { background: rgba(167,139,250,0.15); color: var(--accent-purple); }
+    .pill-db { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+
+    .node-desc { font-size: 0.82rem; color: var(--muted); margin-top: 0.75rem; }
+
+    /* ── Parallel badge ─────────────────────────────────────────── */
+    .parallel-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(240,169,78,0.12);
+      color: var(--accent-amber);
+      border: 1px solid rgba(240,169,78,0.25);
+      border-radius: 6px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+
+    /* ── Before/After table ─────────────────────────────────────── */
+    .comparison-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 2rem;
+      font-size: 0.875rem;
+    }
+    .comparison-table th {
+      background: var(--surface2);
+      padding: 0.75rem 1.25rem;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-align: left;
+    }
+    .comparison-table th.before-col { color: var(--accent-red); }
+    .comparison-table th.after-col { color: var(--accent-green); }
+    .comparison-table td { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); }
+    .comparison-table .metric-col { font-weight: 600; color: var(--text); }
+    .comparison-table .before-val { color: var(--accent-red); }
+    .comparison-table .after-val { color: var(--accent-green); }
+    .comparison-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── DB call visualizer ─────────────────────────────────────── */
+    .db-viz { margin-top: 2rem; }
+    .db-flow {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .db-flow-col { flex: 1; min-width: 280px; }
+    .db-flow-col h4 { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .db-call-list { list-style: none; }
+    .db-call-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      margin-bottom: 0.4rem;
+      font-size: 0.78rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .db-call-item.redundant { background: rgba(248,113,113,0.1); color: var(--accent-red); }
+    .db-call-item.unique { background: rgba(34,201,142,0.1); color: var(--accent-green); }
+    .db-call-item.cached { background: rgba(79,142,247,0.1); color: var(--accent-blue); text-decoration: line-through; opacity: 0.6; }
+
+    /* ── Footer ─────────────────────────────────────────────────── */
+    footer { padding: 2rem 0; text-align: center; color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<header class="hero">
+  <div class="container">
+    <div class="hero-badge">Architecture Documentation</div>
+    <h1>PromptPal LangGraph<br/>Architecture</h1>
+    <p>Migration from isolated Python classes to a LangGraph state-passing DAG — eliminating redundant DB queries and enabling parallel execution.</p>
+  </div>
+</header>
+
+<!-- ═══════════════ PROBLEMS ═══════════════ -->
+<section id="problems">
+  <div class="container">
+    <div class="section-label">Why we changed</div>
+    <h2 class="section-title">Three Problems with the Original Architecture</h2>
+    <p class="section-desc">The original five "agents" were plain Python classes. They shared no runtime state, so every agent re-queried the database independently.</p>
+
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="number">6×</div>
+        <h3>Redundant DB Queries per Request</h3>
+        <p>
+          <code>short_term_summary</code> was computed 3 separate times per <code>/chat/</code> request — once inside <code>TrainerAgent.generate_learning_content()</code>, once inside <code>generate_follow_up_questions()</code>, and once inside <code>NavigatorAgent.get_next_learning_options()</code>. Each call hit PostgreSQL + called GPT-5-mini to summarize the last 5 interactions. That's 6 redundant DB hits and 3 redundant LLM calls every single request.
+        </p>
+      </div>
+      <div class="problem-card">
+        <div class="number">~8s</div>
+        <h3>Forced Sequential Execution</h3>
+        <p>
+          <code>follow_up_questions</code> and <code>next_topic_suggestions</code> are logically independent — neither depends on the other's result. But the original <code>main.py</code> ran them sequentially: trainer → follow_up → navigator → save_module. The two parallel-eligible steps wasted 3–5 seconds of wall-clock time per request.
+        </p>
+      </div>
+      <div class="problem-card">
+        <div class="number">200</div>
+        <h3>Lines of Orchestration in One Endpoint</h3>
+        <p>
+          The <code>/chat/</code> endpoint in <code>main.py</code> mixed route handling, agent orchestration, error recovery, DB writes, and response formatting all in one 200-line function. There was no way to test individual steps in isolation or observe what happened at each stage without inserting print statements.
+        </p>
+      </div>
+    </div>
+
+    <!-- DB call before/after visualizer -->
+    <div class="db-viz">
+      <h3 style="margin-top: 2.5rem; font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">DB + LLM Calls per <code style="font-size:0.85rem; color: var(--accent-blue)">/chat/</code> request</h3>
+      <div class="db-flow">
+        <div class="db-flow-col">
+          <h4 style="color: var(--accent-red)">❌ Before (Sequential)</h4>
+          <ul class="db-call-list">
+            <li class="db-call-item unique">interactions SELECT → GPT-5-mini <em style="opacity:.6">[TrainerAgent: content]</em></li>
+            <li class="db-call-item unique">users SELECT long_term_summary</li>
+            <li class="db-call-item redundant">interactions SELECT → GPT-5-mini <em style="opacity:.6">[TrainerAgent: follow-up]</em></li>
+            <li class="db-call-item redundant">users SELECT long_term_summary</li>
+            <li class="db-call-item redundant">interactions SELECT → GPT-5-mini <em style="opacity:.6">[NavigatorAgent]</em></li>
+            <li class="db-call-item redundant">users SELECT long_term_summary</li>
+            <li class="db-call-item unique">progress SELECT completed_modules</li>
+          </ul>
+          <p style="margin-top: 0.75rem; font-size: 0.78rem; color: var(--accent-red)">4 redundant calls (highlighted) consuming ~2s extra</p>
+        </div>
+        <div class="db-flow-col">
+          <h4 style="color: var(--accent-green)">✅ After (LangGraph)</h4>
+          <ul class="db-call-list">
+            <li class="db-call-item unique">interactions SELECT → GPT-5-mini <em style="opacity:.6">[fetch_summaries_node]</em></li>
+            <li class="db-call-item unique">users SELECT long_term_summary</li>
+            <li class="db-call-item unique">progress SELECT completed_modules</li>
+            <li class="db-call-item cached">~~interactions SELECT~~ <em style="opacity:.6">→ read from state</em></li>
+            <li class="db-call-item cached">~~users SELECT~~ <em style="opacity:.6">→ read from state</em></li>
+            <li class="db-call-item cached">~~interactions SELECT~~ <em style="opacity:.6">→ read from state</em></li>
+            <li class="db-call-item cached">~~users SELECT~~ <em style="opacity:.6">→ read from state</em></li>
+          </ul>
+          <p style="margin-top: 0.75rem; font-size: 0.78rem; color: var(--accent-green)">3 unique calls total — fetched once, shared via state</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ GRAPH FLOW ═══════════════ -->
+<section id="graph">
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2 class="section-title">LangGraph DAG: Before & After</h2>
+    <p class="section-desc">The new architecture is a compiled StateGraph where state flows through each node. Clicking a tab switches between the old sequential call chain and the new parallel DAG.</p>
+
+    <div class="diagram-wrapper">
+      <div class="diagram-tabs">
+        <button class="diagram-tab active" onclick="switchTab(this, 'tab-after')">✅ After — LangGraph DAG</button>
+        <button class="diagram-tab" onclick="switchTab(this, 'tab-before')">❌ Before — Sequential</button>
+      </div>
+
+      <!-- AFTER -->
+      <div id="tab-after" class="diagram-panel active">
+        <div class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1a2236', 'primaryTextColor': '#e2e8f0', 'primaryBorderColor': '#1f2d47', 'lineColor': '#4f8ef7', 'secondaryColor': '#131929', 'tertiaryColor': '#0b0f1a', 'edgeLabelBackground':'#1a2236'}}}%%
+flowchart TD
+    START(["🚀 START\n/chat/ Request"])
+
+    FSN["📊 fetch_summaries_node\n──────────────────────────\n✏️ Writes → short_term_summary\n✏️ Writes → long_term_summary\n✏️ Writes → completed_modules"]
+
+    TN["🎓 trainer_node\n──────────────────────────\n📖 Reads ← summaries from state\n🔍 Weaviate RAG search\n🤖 Calls: Gemini 2.5 Pro\n✏️ Writes → conversational_response\n✏️ Writes → learning_content"]
+
+    FUN["❓ follow_up_node\n──────────────────\n📖 Reads ← response, summaries\n🤖 Calls: GPT-4\n✏️ Writes → follow_up_questions"]
+
+    NN["🧭 navigator_node\n──────────────────\n📖 Reads ← summaries, modules\n🔍 Weaviate UseCase search\n🤖 Calls: GPT-4\n✏️ Writes → next_topic_suggestions"]
+
+    SMN["💾 save_module_node\n──────────────────\n📖 Reads ← query\n💾 Writes: progress table\n✏️ Writes → module_save_result"]
+
+    END(["✅ END\nReturn Response"])
+
+    PG[("🗄️ PostgreSQL\ninteractions · users\nprogress · sessions")]
+    WV[("🔷 Weaviate\nCoreConcept · PromptGuide\nUseCase · UserDocument")]
+    GEM["✨ Gemini 2.5 Pro\n+ Google Search"]
+    GPT4["🤖 GPT-4"]
+    MINI["⚡ GPT-5-mini"]
+
+    START --> FSN
+    FSN --> TN
+    TN --> FUN
+    TN --> NN
+    FUN --> SMN
+    NN --> SMN
+    SMN --> END
+
+    PG -.->|"interactions\nusers"| FSN
+    MINI -.->|summarize| FSN
+    TN -.->|"interactions\nwrite"| PG
+    SMN -.->|"progress\nwrite"| PG
+    WV -.->|"CoreConcept\nPromptGuide\nUserDocument"| TN
+    WV -.->|"UseCase\nCoreConcept"| NN
+    GEM -.-> TN
+    GPT4 -.-> FUN
+    GPT4 -.-> NN
+
+    style FUN fill:#2a1f0a,stroke:#f0a94e,color:#f0a94e
+    style NN  fill:#1e1a2e,stroke:#a78bfa,color:#a78bfa
+    style FSN fill:#0a2218,stroke:#22c98e,color:#22c98e
+    style TN  fill:#0a1628,stroke:#4f8ef7,color:#4f8ef7
+    style SMN fill:#2a0a0a,stroke:#f87171,color:#f87171
+    style START fill:#131929,stroke:#4f8ef7,color:#4f8ef7
+    style END fill:#131929,stroke:#22c98e,color:#22c98e
+    style PG fill:#131929,stroke:#1f2d47,color:#8896a7
+    style WV fill:#131929,stroke:#1f2d47,color:#8896a7
+    style GEM fill:#131929,stroke:#1f2d47,color:#8896a7
+    style GPT4 fill:#131929,stroke:#1f2d47,color:#8896a7
+    style MINI fill:#131929,stroke:#1f2d47,color:#8896a7
+        </div>
+        <p style="text-align:center; color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">
+          <span style="color: var(--accent-amber)">⚡ Parallel branches:</span> follow_up_node and navigator_node run concurrently after trainer_node — saving ~3–5s per request.
+        </p>
+      </div>
+
+      <!-- BEFORE -->
+      <div id="tab-before" class="diagram-panel">
+        <div class="mermaid">
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#1a2236', 'primaryTextColor': '#e2e8f0', 'primaryBorderColor': '#1f2d47', 'lineColor': '#f87171', 'secondaryColor': '#131929', 'tertiaryColor': '#0b0f1a'}}}%%
+flowchart TD
+    REQ(["📨 POST /chat/\n~200 lines of mixed logic"])
+
+    subgraph OLD ["main.py — Sequential Call Chain"]
+        S1["TrainerAgent.generate_learning_content()\n→ internally: summary_agent.get_short_term_summary()  DB CALL 1\n→ internally: summary_agent.get_long_term_summary()   DB CALL 2\n→ Weaviate RAG search\n→ Gemini 2.5 Pro\n→ INSERT interactions"]
+
+        S2["TrainerAgent.generate_follow_up_questions()\n→ internally: summary_agent.get_short_term_summary()  DB CALL 3 ❌\n→ internally: summary_agent.get_long_term_summary()   DB CALL 4 ❌\n→ GPT-4"]
+
+        S3["NavigatorAgent.get_next_learning_options()\n→ internally: summary_agent.get_short_term_summary()  DB CALL 5 ❌\n→ internally: summary_agent.get_long_term_summary()   DB CALL 6 ❌\n→ Weaviate UseCase search\n→ GPT-4"]
+
+        S4["SummaryAgent.save_completed_module()\n→ embed query\n→ cosine similarity check\n→ UPDATE progress"]
+
+        S5["BackgroundTask: cache_prompts_task()\n→ NavigatorAgent again (another full run)\n→ UPDATE users.prompts"]
+    end
+
+    RES(["📤 Response\n{answer, follow_up, suggestions}"])
+
+    REQ --> S1 --> S2 --> S3 --> S4 --> S5 --> RES
+
+    style OLD fill:#1a0a0a,stroke:#f87171
+    style S1 fill:#1a1212,stroke:#f87171,color:#e2e8f0
+    style S2 fill:#1a1212,stroke:#f87171,color:#f87171
+    style S3 fill:#1a1212,stroke:#f87171,color:#f87171
+    style S4 fill:#131929,stroke:#1f2d47,color:#8896a7
+    style S5 fill:#131929,stroke:#1f2d47,color:#8896a7
+    style REQ fill:#131929,stroke:#f87171,color:#f87171
+    style RES fill:#131929,stroke:#8896a7,color:#8896a7
+        </div>
+        <p style="text-align:center; color: var(--accent-red); font-size: 0.8rem; margin-top: 1rem;">
+          ❌ Calls 3–6 are exact duplicates of calls 1–2. No shared state between agents.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ STATE SCHEMA ═══════════════ -->
+<section id="state">
+  <div class="container">
+    <div class="section-label">Shared State</div>
+    <h2 class="section-title">PromptPalState — Who Reads, Who Writes</h2>
+    <p class="section-desc">The TypedDict state object flows through the entire graph. Each cell shows whether a node reads (R) or writes (W) that field.</p>
+
+    <div class="matrix-wrapper">
+      <table class="state-matrix">
+        <thead>
+          <tr>
+            <th class="field-col" style="min-width:200px">State Field</th>
+            <th style="min-width:80px">Type</th>
+            <th style="color: var(--node-fetch); min-width:130px">fetch_summaries</th>
+            <th style="color: var(--node-trainer); min-width:100px">trainer</th>
+            <th style="color: var(--node-followup); min-width:110px">follow_up</th>
+            <th style="color: var(--node-navigator); min-width:110px">navigator</th>
+            <th style="color: var(--node-save); min-width:120px">save_module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Input group -->
+          <tr class="group-label"><td colspan="7">INPUT — Set at request time by /chat/ endpoint</td></tr>
+          <tr class="group-input">
+            <td class="field-name">user_id</td>
+            <td class="field-type">str</td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+          </tr>
+          <tr class="group-input">
+            <td class="field-name">user_role</td>
+            <td class="field-type">str</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+          <tr class="group-input">
+            <td class="field-name">query</td>
+            <td class="field-type">str</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-read">R</span></td>
+          </tr>
+          <tr class="group-input">
+            <td class="field-name">selected_document_ids</td>
+            <td class="field-type">List[str]</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+
+          <!-- Memory group -->
+          <tr class="group-label"><td colspan="7">MEMORY — Fetched once by fetch_summaries_node, then shared</td></tr>
+          <tr class="group-memory">
+            <td class="field-name">short_term_summary</td>
+            <td class="field-type">str</td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+          <tr class="group-memory">
+            <td class="field-name">long_term_summary</td>
+            <td class="field-type">str</td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+          <tr class="group-memory">
+            <td class="field-name">completed_modules</td>
+            <td class="field-type">List[str]</td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+
+          <!-- Content group -->
+          <tr class="group-label"><td colspan="7">CONTENT — Written by trainer_node</td></tr>
+          <tr class="group-content">
+            <td class="field-name">conversational_response</td>
+            <td class="field-type">str</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-read">R</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+          <tr class="group-content">
+            <td class="field-name">learning_content</td>
+            <td class="field-type">List[dict]</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+
+          <!-- Parallel group -->
+          <tr class="group-label"><td colspan="7">PARALLEL OUTPUT — Written concurrently by follow_up & navigator nodes</td></tr>
+          <tr class="group-parallel">
+            <td class="field-name">follow_up_questions</td>
+            <td class="field-type">List[dict]</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+          <tr class="group-parallel">
+            <td class="field-name">next_topic_suggestions</td>
+            <td class="field-type">List[dict]</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-write">W</span></td>
+            <td><span class="badge-empty">—</span></td>
+          </tr>
+
+          <!-- Final group -->
+          <tr class="group-label"><td colspan="7">RESULT — Written by save_module_node</td></tr>
+          <tr class="group-final">
+            <td class="field-name">module_save_result</td>
+            <td class="field-type">dict</td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-empty">—</span></td>
+            <td><span class="badge-write">W</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top: 1rem; font-size: 0.8rem; color: var(--muted)">
+      <span class="badge-write">W</span> = node writes this field to state &nbsp;|&nbsp;
+      <span class="badge-read">R</span> = node reads this field from state &nbsp;|&nbsp;
+      <span class="badge-empty">—</span> = node doesn't touch this field
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════ NODE DETAILS ═══════════════ -->
+<section id="nodes">
+  <div class="container">
+    <div class="section-label">Node Reference</div>
+    <h2 class="section-title">Node Details</h2>
+    <p class="section-desc">Each node is a pure function <code style="font-size:0.82rem; color:var(--accent-blue)">PromptPalState → dict</code>. Dependencies are injected via closure factories in <code style="font-size:0.82rem; color:var(--accent-blue)">chat_graph.py</code>.</p>
+
+    <div class="node-grid">
+
+      <!-- fetch_summaries -->
+      <div class="node-card fetch">
+        <div class="node-header">
+          <span class="node-icon">📊</span>
+          <div>
+            <div class="node-name">summary_node.py → make_fetch_summaries_node()</div>
+            <div class="node-title" style="color: var(--node-fetch)">fetch_summaries_node</div>
+          </div>
+        </div>
+        <p class="node-desc">Entry node. Runs first. Fetches all memory context a single time and places it in shared state — this is the fix for the 6× redundant DB call problem.</p>
+        <div class="node-section">
+          <h4>Reads from State</h4>
+          <ul><li><span class="pill pill-read">user_id</span></li></ul>
+        </div>
+        <div class="node-section">
+          <h4>Writes to State</h4>
+          <ul>
+            <li><span class="pill pill-write">short_term_summary</span></li>
+            <li><span class="pill pill-write">long_term_summary</span></li>
+            <li><span class="pill pill-write">completed_modules</span></li>
+          </ul>
+        </div>
+        <div class="node-section">
+          <h4>External Services</h4>
+          <ul>
+            <li><span class="pill pill-db">PostgreSQL: interactions</span></li>
+            <li><span class="pill pill-db">PostgreSQL: users</span></li>
+            <li><span class="pill pill-db">PostgreSQL: progress</span></li>
+            <li><span class="pill pill-llm">GPT-5-mini (summarize)</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- trainer -->
+      <div class="node-card trainer">
+        <div class="node-header">
+          <span class="node-icon">🎓</span>
+          <div>
+            <div class="node-name">trainer_node.py → make_trainer_node()</div>
+            <div class="node-title" style="color: var(--node-trainer)">trainer_node</div>
+          </div>
+        </div>
+        <p class="node-desc">Core lesson generation. Reads pre-fetched summaries from state (no DB call). Routes to CLEAR or PromptCoach prompt strategy, calls Gemini 2.5 Pro with Google Search grounding.</p>
+        <div class="node-section">
+          <h4>Reads from State</h4>
+          <ul>
+            <li><span class="pill pill-read">query</span></li>
+            <li><span class="pill pill-read">user_id</span></li>
+            <li><span class="pill pill-read">user_role</span></li>
+            <li><span class="pill pill-read">short_term_summary</span></li>
+            <li><span class="pill pill-read">long_term_summary</span></li>
+            <li><span class="pill pill-read">selected_document_ids</span></li>
+          </ul>
+        </div>
+        <div class="node-section">
+          <h4>Writes to State</h4>
+          <ul>
+            <li><span class="pill pill-write">conversational_response</span></li>
+            <li><span class="pill pill-write">learning_content</span></li>
+          </ul>
+        </div>
+        <div class="node-section">
+          <h4>External Services</h4>
+          <ul>
+            <li><span class="pill pill-service">Weaviate: CoreConcept</span></li>
+            <li><span class="pill pill-service">Weaviate: PromptGuide</span></li>
+            <li><span class="pill pill-service">Weaviate: UserDocument</span></li>
+            <li><span class="pill pill-llm">Gemini 2.5 Pro + Google Search</span></li>
+            <li><span class="pill pill-db">PostgreSQL: interactions (write)</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- follow_up -->
+      <div class="node-card followup">
+        <div class="node-header">
+          <span class="node-icon">❓</span>
+          <div>
+            <div class="node-name">followup_node.py → make_follow_up_node()</div>
+            <div class="node-title" style="color: var(--node-followup)">
+              follow_up_node
+              <span class="parallel-badge">⚡ Parallel</span>
+            </div>
+          </div>
+        </div>
+        <p class="node-desc">Runs in parallel with navigator_node. Generates 3 short follow-up prompts (5–6 words) using GPT-4. Uses lesson content and summaries from state — no extra DB calls.</p>
+        <div class="node-section">
+          <h4>Reads from State</h4>
+          <ul>
+            <li><span class="pill pill-read">query</span></li>
+            <li><span class="pill pill-read">user_role</span></li>
+            <li><span class="pill pill-read">conversational_response</span></li>
+            <li><span class="pill pill-read">short_term_summary</span></li>
+            <li><span class="pill pill-read">long_term_summary</span></li>
+          </ul>
+        </div>
+        <div class="node-section">
+          <h4>Writes to State</h4>
+          <ul><li><span class="pill pill-write">follow_up_questions</span></li></ul>
+        </div>
+        <div class="node-section">
+          <h4>External Services</h4>
+          <ul><li><span class="pill pill-llm">GPT-4</span></li></ul>
+        </div>
+      </div>
+
+      <!-- navigator -->
+      <div class="node-card navigator">
+        <div class="node-header">
+          <span class="node-icon">🧭</span>
+          <div>
+            <div class="node-name">navigator_node.py → make_navigator_node()</div>
+            <div class="node-title" style="color: var(--node-navigator)">
+              navigator_node
+              <span class="parallel-badge">⚡ Parallel</span>
+            </div>
+          </div>
+        </div>
+        <p class="node-desc">Runs in parallel with follow_up_node. Embeds user context, searches Weaviate UseCase collection with near_vector, then generates 5 AI task suggestions via GPT-4.</p>
+        <div class="node-section">
+          <h4>Reads from State</h4>
+          <ul>
+            <li><span class="pill pill-read">user_role</span></li>
+            <li><span class="pill pill-read">short_term_summary</span></li>
+            <li><span class="pill pill-read">long_term_summary</span></li>
+            <li><span class="pill pill-read">completed_modules</span></li>
+          </ul>
+        </div>
+        <div class="node-section">
+          <h4>Writes to State</h4>
+          <ul><li><span class="pill pill-write">next_topic_suggestions</span></li></ul>
+        </div>
+        <div class="node-section">
+          <h4>External Services</h4>
+          <ul>
+            <li><span class="pill pill-service">Weaviate: UseCase (near_vector)</span></li>
+            <li><span class="pill pill-service">Weaviate: CoreConcept (near_vector)</span></li>
+            <li><span class="pill pill-llm">OpenAI text-embedding-3-small</span></li>
+            <li><span class="pill pill-llm">GPT-4</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- save_module -->
+      <div class="node-card save" style="grid-column: span 1;">
+        <div class="node-header">
+          <span class="node-icon">💾</span>
+          <div>
+            <div class="node-name">save_module_node.py → make_save_module_node()</div>
+            <div class="node-title" style="color: var(--node-save)">save_module_node</div>
+          </div>
+        </div>
+        <p class="node-desc">Join point — runs after both parallel branches complete. Embeds the user's query and checks cosine similarity against existing completed_modules. Saves to DB only if semantically unique (similarity &lt; 0.75).</p>
+        <div class="node-section">
+          <h4>Reads from State</h4>
+          <ul>
+            <li><span class="pill pill-read">user_id</span></li>
+            <li><span class="pill pill-read">query</span></li>
+          </ul>
+        </div>
+        <div class="node-section">
+          <h4>Writes to State</h4>
+          <ul><li><span class="pill pill-write">module_save_result</span></li></ul>
+        </div>
+        <div class="node-section">
+          <h4>External Services</h4>
+          <ul>
+            <li><span class="pill pill-db">PostgreSQL: progress.completed_modules (write)</span></li>
+            <li><span class="pill pill-llm">OpenAI text-embedding-3-small (cosine check)</span></li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ HOW TO USE ═══════════════ -->
+<section id="usage">
+  <div class="container">
+    <div class="section-label">Integration</div>
+    <h2 class="section-title">How the Graph Replaces the Endpoint Logic</h2>
+    <p class="section-desc">The compiled graph is invoked with an initial state dict. All orchestration logic moves out of <code>main.py</code>.</p>
+
+    <div class="diagram-wrapper" style="padding: 0; overflow: hidden;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+        <div style="padding: 1.5rem; border-right: 1px solid var(--border);">
+          <div style="font-size: 0.72rem; font-weight: 700; color: var(--accent-red); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem;">❌ Before — main.py /chat/ endpoint</div>
+          <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; line-height: 1.6; color: var(--muted); overflow-x: auto;">
+@app.post("/chat/")
+async def chat(req, bg: BackgroundTasks):
+    # ~200 lines of mixed logic:
+    trainer_response = trainer
+      .generate_learning_content(
+        user_id, user_role, content,
+        selected_documents
+      )
+    # internally calls summary_agent ×2
+
+    follow_up_questions = trainer
+      .generate_follow_up_questions(...)
+    # internally calls summary_agent ×2 again
+
+    next_options = navigator
+      .get_next_learning_options(...)
+    # internally calls summary_agent ×2 again
+
+    module_result = summary
+      .save_completed_module(...)
+
+    bg.add_task(cache_prompts_task, user_id)
+    return { ... }  # assemble manually</pre>
+        </div>
+        <div style="padding: 1.5rem;">
+          <div style="font-size: 0.72rem; font-weight: 700; color: var(--accent-green); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem;">✅ After — main.py /chat/ endpoint</div>
+          <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; line-height: 1.6; color: var(--text); overflow-x: auto;">
+@app.post("/chat/")
+async def chat(req, bg: BackgroundTasks):
+    result = chat_graph.invoke({
+        "user_id":     req.user_id,
+        "user_role":   req.user_role,
+        "query":       req.content,
+        "selected_document_ids":
+                       req.selected_documents or [],
+        # remaining fields start empty
+        "short_term_summary": "",
+        "long_term_summary":  "",
+        "completed_modules":  [],
+        "learning_content":   [],
+        "conversational_response": "",
+        "follow_up_questions": [],
+        "next_topic_suggestions": [],
+        "module_save_result": {},
+    })
+    bg.add_task(cache_prompts_task, req.user_id)
+    return {
+        "answer":            result["conversational_response"],
+        "follow_up_questions": result["follow_up_questions"],
+        "suggestions":        result["next_topic_suggestions"],
+        "learning_options":   [],
+    }</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ BEFORE/AFTER COMPARISON ═══════════════ -->
+<section id="impact">
+  <div class="container">
+    <div class="section-label">Impact</div>
+    <h2 class="section-title">Before vs. After Comparison</h2>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th style="min-width:200px">Metric</th>
+          <th class="before-col" style="min-width:220px">❌ Before</th>
+          <th class="after-col" style="min-width:220px">✅ After (LangGraph)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric-col">DB queries per /chat/ request</td>
+          <td class="before-val">7 (4 redundant)</td>
+          <td class="after-val">3 (all unique)</td>
+        </tr>
+        <tr>
+          <td class="metric-col">LLM calls for summarization</td>
+          <td class="before-val">3× GPT-5-mini per request</td>
+          <td class="after-val">1× GPT-5-mini per request</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Follow-up + Navigator execution</td>
+          <td class="before-val">Sequential (~3–5s wasted)</td>
+          <td class="after-val">Parallel (concurrent branches)</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Estimated /chat/ latency</td>
+          <td class="before-val">~8–12s (sequential)</td>
+          <td class="after-val">~5–7s (parallel + no redundant calls)</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Orchestration location</td>
+          <td class="before-val">~200 lines mixed into main.py</td>
+          <td class="after-val">~15 lines in main.py + graph files</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Node testability</td>
+          <td class="before-val">Must mock entire endpoint</td>
+          <td class="after-val">Each node testable independently</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Observability</td>
+          <td class="before-val">Manual print() statements</td>
+          <td class="after-val">LangSmith: per-node I/O tracing</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Streaming support</td>
+          <td class="before-val">Not possible</td>
+          <td class="after-val">graph.astream() — native token streaming</td>
+        </tr>
+        <tr>
+          <td class="metric-col">Adding a new processing step</td>
+          <td class="before-val">Edit 200-line endpoint function</td>
+          <td class="after-val">Add node + edge in chat_graph.py</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ FILE MAP ═══════════════ -->
+<section id="files">
+  <div class="container">
+    <div class="section-label">File Map</div>
+    <h2 class="section-title">New Files & Changed Files</h2>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 2rem;">
+      <div class="diagram-wrapper" style="padding: 1.5rem;">
+        <h4 style="color: var(--accent-green); font-size: 0.8rem; margin-bottom: 1rem;">✅ New Files</h4>
+        <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.8; color: var(--text);">backend/app/graph/
+├── <span style="color: var(--accent-blue)">state.py</span>              ← TypedDict state schema
+├── <span style="color: var(--accent-blue)">chat_graph.py</span>         ← graph factory + wiring
+└── nodes/
+    ├── <span style="color: var(--node-fetch)">summary_node.py</span>   ← fetch_summaries_node
+    ├── <span style="color: var(--node-trainer)">trainer_node.py</span>   ← trainer_node
+    ├── <span style="color: var(--node-followup)">followup_node.py</span>  ← follow_up_node
+    ├── <span style="color: var(--node-navigator)">navigator_node.py</span> ← navigator_node
+    └── <span style="color: var(--node-save)">save_module_node.py</span> ← save_module_node
+
+docs/
+├── <span style="color: var(--accent-purple)">langgraph_architecture.html</span> ← this file
+└── <span style="color: var(--accent-purple)">012-LangGraph-Migration.md</span>  ← dev journal</pre>
+      </div>
+      <div class="diagram-wrapper" style="padding: 1.5rem;">
+        <h4 style="color: var(--accent-amber); font-size: 0.8rem; margin-bottom: 1rem;">⚡ Modified Files</h4>
+        <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.8; color: var(--text);">backend/app/
+└── <span style="color: var(--accent-amber)">main.py</span>              ← /chat/ uses graph.invoke()
+
+requirements.txt
+└── + <span style="color: var(--accent-green)">langgraph>=1.0.0</span>   ← added
+
+Not changed (agents stay as-is):
+backend/app/agents/
+├── trainer_agent.py   ← internal methods reused
+├── navigator_agent.py ← _build_clear_prompt reused
+├── summary_agent.py   ← get_*summary reused
+├── assessment_agent.py ← independent, no change
+└── document_agent.py   ← independent, no change</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    PromptPal · LangGraph Architecture Documentation · Generated 2026-05-24
+  </div>
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#0b0f1a',
+      primaryColor: '#1a2236',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#1f2d47',
+      lineColor: '#4f8ef7',
+      secondaryColor: '#131929',
+    }
+  });
+
+  function switchTab(btn, panelId) {
+    document.querySelectorAll('.diagram-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.diagram-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(panelId).classList.add('active');
+  }
+</script>
+</body>
+</html>
